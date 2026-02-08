@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  body {
+    @apply bg-black text-neutral-100;
+  }
+  /* Default to dark (black) theme for premium look */
+  html.dark body {
+    @apply bg-black text-neutral-100;
+  }
+  html.light body {
+    @apply bg-neutral-50 text-neutral-900;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-neutral-800/80 bg-surface-card shadow-card transition-shadow duration-200;
+  }
+  .card-hover {
+    @apply hover:border-neutral-700 hover:shadow-card-hover;
+  }
+  .btn-primary {
+    @apply rounded-lg bg-primary-500 px-4 py-2.5 font-medium text-white transition-all duration-200 hover:bg-primary-600 active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply rounded-lg px-4 py-2.5 font-medium text-neutral-300 transition-colors hover:bg-neutral-800 hover:text-white;
+  }
+  .input-field {
+    @apply w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2.5 text-neutral-100 placeholder-neutral-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors;
+  }
+}

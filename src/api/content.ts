@@ -7,23 +7,17 @@ import type { Movie, Genre, Category } from "../types/models";
 export const contentApi = {
   movies: {
     list: (params?: ListParams) =>
-      useMock
-        ? mockDelay(250).then(() => mockDb.getMovies(params))
-        : api.get<PaginatedResponse<Movie>>("/content/movies", { params }).then((r) => r.data),
+      api.get<PaginatedResponse<Movie>>("/movies", { params }).then((r) => r.data),
     get: (id: string) =>
-      useMock
-        ? mockDelay(150).then(() => mockDb.getMovie(id) ?? Promise.reject(new Error("Not found")))
-        : api.get<Movie>(`/content/movies/${id}`).then((r) => r.data),
+      api.get<Movie>(`/movies/${id}`).then((r) => r.data),
     create: (body: Partial<Movie>) =>
-      useMock
-        ? mockDelay(300).then(() => mockDb.createMovie(body))
-        : api.post<Movie>("/content/movies", body).then((r) => r.data),
+      api.post<Movie>("/movies", body).then((r) => r.data),
     update: (id: string, body: Partial<Movie>) =>
-      useMock
-        ? mockDelay(200).then(() => mockDb.updateMovie(id, body) ?? Promise.reject(new Error("Not found")))
-        : api.patch<Movie>(`/content/movies/${id}`, body).then((r) => r.data),
+      api.put<Movie>(`/movies/${id}`, body).then((r) => r.data),
     delete: (id: string): Promise<void> =>
-      useMock ? mockDelay(200).then(() => { mockDb.deleteMovie(id); }) : api.delete(`/content/movies/${id}`).then(() => undefined),
+      api.delete(`/movies/${id}`).then(() => undefined),
+    addVideoFile: (id: string, payload: { quality: string; file_url: string; file_size: number; duration_seconds: number; s3_key: string }) =>
+      api.post(`/movies/${id}/video-files`, payload).then((r) => r.data),
   },
   genres: {
     list: () =>

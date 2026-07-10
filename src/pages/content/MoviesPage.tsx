@@ -31,7 +31,14 @@ export function MoviesPage() {
     onError: (err: Error) => toast(err.message ?? "Delete failed", "error"),
   });
 
-  const movies = Array.isArray(data?.data) ? data.data : [];
+  // Backend returns { success, data: { movies: [] } } or { data: [] }
+  const movies = Array.isArray((data as any)?.data?.movies)
+    ? (data as any).data.movies
+    : Array.isArray((data as any)?.data)
+    ? (data as any).data
+    : Array.isArray(data)
+    ? (data as any)
+    : [];
   const totalPages = data?.totalPages ?? 0;
 
   return (

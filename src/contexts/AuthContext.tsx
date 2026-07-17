@@ -14,21 +14,8 @@ import {
   getStoredToken,
   setStoredToken,
   clearStoredTokens,
-  DEV_TOKEN,
 } from "../api/client";
 import type { AdminUser, LoginPayload } from "../types/auth";
-
-/** Dev-only: use these credentials when the backend is not running (e.g. 404). */
-export const DEV_LOGIN = {
-  email: "admin@viewesta.com",
-  password: "admin123",
-} as const;
-const DEV_USER: AdminUser = {
-  id: "dev-admin-1",
-  email: DEV_LOGIN.email,
-  name: "Admin",
-  role: "super_admin",
-};
 
 interface AuthState {
   user: AdminUser | null;
@@ -47,10 +34,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => getStoredToken());
-  const [devUser, setDevUser] = useState<AdminUser | null>(null);
   const queryClient = useQueryClient();
-
-  const isDevSession = token === DEV_TOKEN;
 
   const {
     data: apiUser,
@@ -59,18 +43,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: authApi.me,
-    enabled: !!token && !isDevSession,
+    enabled: !!token,
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
 
-  const user = isDevSession ? devUser : apiUser ?? null;
+  const user = apiUser ?? null;
 
   useEffect(() => {
     if (!token) return;
     const handleLogout = () => {
       setToken(null);
-      setDevUser(null);
       queryClient.clear();
     };
     window.addEventListener("auth:logout", handleLogout);
@@ -79,29 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (payload: LoginPayload) => {
-      const isDevCredentials =
-        payload.email === DEV_LOGIN.email && payload.password === DEV_LOGIN.password;
-
-      if (isDevCredentials) {
-        setStoredToken(DEV_TOKEN);
-        setToken(DEV_TOKEN);
-        setDevUser(DEV_USER);
-        return;
-      }
-
-      try {
-        const res = await authApi.login(payload);
-        setToken(res.token);
-        await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
-      } catch (err) {
-        if (axios.isAxiosError(err) && err.response?.status === 404) {
-          setStoredToken(DEV_TOKEN);
-          setToken(DEV_TOKEN);
-          setDevUser(DEV_USER);
-          return;
-        }
-        throw err;
-      }
+      const res = await authApi.login(payload);
+      setToken(res.token);
+      await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
     },
     [queryClient]
   );

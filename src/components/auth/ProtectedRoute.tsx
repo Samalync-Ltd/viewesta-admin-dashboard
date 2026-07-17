@@ -24,6 +24,16 @@ export function ProtectedRoute({ children, permission }: ProtectedRouteProps) {
   }
 
   if (permission && !hasPermission(user.role, permission)) {
+    if (location.pathname === "/") {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-black px-4 text-white">
+          <div className="max-w-md text-center">
+            <h2 className="mb-2 text-2xl font-bold">Access Denied</h2>
+            <p className="text-neutral-400">You do not have permission to view this dashboard. Please contact an administrator.</p>
+          </div>
+        </div>
+      );
+    }
     return <Navigate to="/" replace />;
   }
 

@@ -17,11 +17,6 @@ export function clearStoredTokens(): void {
   localStorage.removeItem(REFRESH_KEY);
 }
 
-/** Dev-only: bypass logout on 401 when using mock login */
-export const DEV_TOKEN = "dev_mock_token";
-export function isDevToken(): boolean {
-  return getStoredToken() === DEV_TOKEN;
-}
 
 export function setStoredRefreshToken(token: string): void {
   localStorage.setItem(REFRESH_KEY, token);
@@ -29,7 +24,6 @@ export function setStoredRefreshToken(token: string): void {
 
 export const api = axios.create({
   baseURL: env.apiBaseUrl,
-  headers: { "Content-Type": "application/json" },
 });
 
 api.interceptors.request.use((config) => {
@@ -41,7 +35,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err: AxiosError<{ message?: string; code?: string }>) => {
-    if (err.response?.status === 401 && !isDevToken()) {
+    if (err.response?.status === 401) {
       clearStoredTokens();
       window.dispatchEvent(new CustomEvent("auth:logout"));
     }

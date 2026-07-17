@@ -5,7 +5,7 @@ import { Film } from "lucide-react";
 import { isAuthError } from "../../api/client";
 
 export function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -29,20 +29,19 @@ export function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await login({ email, password });
+      await login({ 
+        identifier, 
+        password,
+        device_id: "web-demo",
+        device_name: "Chrome",
+        device_type: "web"
+      });
       navigate(from, { replace: true });
     } catch (err) {
-      const is404 =
-        typeof err === "object" &&
-        err !== null &&
-        "response" in err &&
-        (err as { response?: { status?: number } }).response?.status === 404;
       setError(
-        is404
-          ? "Backend not reachable. Enter any email/password to use dev login."
-          : isAuthError(err)
-            ? "Session expired. Please sign in again."
-            : (err as Error)?.message ?? "Login failed"
+        isAuthError(err)
+          ? "Session expired. Please sign in again."
+          : (err as Error)?.message ?? "Login failed"
       );
     } finally {
       setLoading(false);
@@ -63,18 +62,18 @@ export function LoginPage() {
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-neutral-300">
-              Email
+            <label htmlFor="identifier" className="mb-1.5 block text-sm font-medium text-neutral-300">
+              Identifier (Username/Email)
             </label>
             <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              id="identifier"
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
-              autoComplete="email"
+              autoComplete="username"
               className="input-field"
-              placeholder="admin@viewesta.com"
+              placeholder="admin2"
             />
           </div>
           <div>
@@ -102,9 +101,6 @@ export function LoginPage() {
           >
             {loading ? "Signing in…" : "Sign in"}
           </button>
-          <p className="mt-4 text-center text-xs text-neutral-500">
-            No backend? Use any email/password — you’ll be signed in as dev admin.
-          </p>
         </form>
       </div>
     </div>

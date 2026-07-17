@@ -9,8 +9,11 @@ export interface AdminUser {
 }
 
 export interface LoginPayload {
-  email: string;
+  identifier: string;
   password: string;
+  device_id: string;
+  device_name: string;
+  device_type: string;
 }
 
 export interface AuthResponse {

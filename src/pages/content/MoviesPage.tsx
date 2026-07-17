@@ -109,7 +109,7 @@ export function MoviesPage() {
                 </tr>
               </thead>
               <tbody>
-                {movies.map((m) => (
+                {movies.map((m: any) => (
                   <tr
                     key={m.id}
                     className="border-b border-slate-100 dark:border-slate-700"

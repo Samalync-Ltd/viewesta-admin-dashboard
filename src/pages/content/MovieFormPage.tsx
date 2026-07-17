@@ -76,77 +76,69 @@ export function MovieFormPage() {
       setIsUploading(true);
       setUploadProgress(0);
 
-      let totalFiles = 0;
-      if (posterFile) totalFiles++;
-      if (backdropFile) totalFiles++;
-      if (trailerFile) totalFiles++;
-      if (videoFile) totalFiles++;
+      let finalPosterUrl = form.posterUrl || "";
+      let finalBackdropUrl = form.backdropUrl || "";
+      let finalTrailerUrl = form.trailerUrl || "";
 
-      let uploadedFiles = 0;
-      const onProgress = (p: number) => {
-        const overall = (uploadedFiles * 100 + p) / (totalFiles || 1);
-        setUploadProgress(Math.min(overall, 99));
-      };
-
-      const uploadAsset = async (file: File | null, type: string) => {
-        if (!file) return null;
-        const res = await uploadApi.uploadFileFlow(file, type, onProgress);
-        uploadedFiles++;
-        return res;
-      };
-
-      const posterData = await uploadAsset(posterFile, "poster");
-      const backdropData = await uploadAsset(backdropFile, "backdrop");
-      const trailerData = await uploadAsset(trailerFile, "trailer");
-      const videoData = await uploadAsset(videoFile, "video");
-
-      const payload: any = {
-        ...form,
-        posterUrl: posterData ? posterData.fileUrl : form.posterUrl,
-        backdropUrl: backdropData ? backdropData.fileUrl : form.backdropUrl,
-        trailerUrl: trailerData ? trailerData.fileUrl : form.trailerUrl,
-      };
-
-      if (trailerData) {
-        payload.trailer_video = {
-          file_url: trailerData.fileUrl,
-          file_size: trailerData.fileSize,
-          duration_seconds: 120, // default
-          s3_key: trailerData.s3Key,
-          is_processed: false,
-        };
+      // Upload files via S3 presigned URLs
+      if (posterFile) {
+        const res = await uploadApi.uploadFileFlow(posterFile, "poster", (p) => setUploadProgress(p * 0.1));
+        finalPosterUrl = res.fileUrl;
+      }
+      if (backdropFile) {
+        const res = await uploadApi.uploadFileFlow(backdropFile, "backdrop", (p) => setUploadProgress(10 + (p * 0.1)));
+        finalBackdropUrl = res.fileUrl;
+      }
+      if (trailerFile) {
+        const res = await uploadApi.uploadFileFlow(trailerFile, "trailer", (p) => setUploadProgress(20 + (p * 0.1)));
+        finalTrailerUrl = res.fileUrl;
       }
 
-      // We explicitly map the frontend naming conventions if backend requires it.
-      // Often, the backend maps snake_case. Here we use the payload that backend expects.
-      const apiPayload = {
-         ...payload,
-         content_type: "movie",
-         poster_url: payload.posterUrl,
-         backdrop_url: payload.backdropUrl,
-         trailer_url: payload.trailerUrl,
-         release_date: payload.releaseYear ? `${payload.releaseYear}-01-01` : undefined,
-         duration_minutes: payload.duration,
+      setUploadProgress(30);
+
+      // Construct JSON payload for the main API request
+      const payload: any = {
+        title: form.title || "",
+        description: form.description || "",
+        cast: [
+          {
+            name: "Unknown Actor",
+            role: "Lead Actor",
+          }
+        ],
+        video_quality: "1080p",
+        poster_url: finalPosterUrl,
+        backdrop_url: finalBackdropUrl,
+        trailer_url: finalTrailerUrl,
       };
 
-      setUploadProgress(99);
+      if (!isNew) {
+        payload._method = "PUT";
+      }
 
       let movieId = id;
       if (isNew) {
-        const res: any = await createMutation.mutateAsync(apiPayload);
+        const res: any = await createMutation.mutateAsync(payload);
         // Backend returns: { success: true, data: { movie: { id: "..." } } }
         movieId = res?.data?.movie?.id || res?.data?.id || res?.movie?.id || res?.id;
       } else {
-        await updateMutation.mutateAsync({ id, body: apiPayload });
+        await updateMutation.mutateAsync({ id, body: payload });
       }
 
-      if (movieId && videoData) {
-        await contentApi.movies.addVideoFile(movieId as string, {
-          quality: "1080p",
-          file_url: videoData.fileUrl,
-          file_size: videoData.fileSize,
-          duration_seconds: (form.duration || 120) * 60,
-          s3_key: videoData.s3Key,
+      setUploadProgress(50);
+
+      // Upload video directly to backend via multipart/form-data
+      if (movieId && videoFile) {
+        const videoFormData = new FormData();
+        videoFormData.append("video", videoFile);
+        videoFormData.append("quality", "1080p");
+        videoFormData.append("duration_seconds", ((form.duration || 120) * 60).toString());
+
+        await contentApi.movies.addVideoFile(movieId as string, videoFormData, (progressEvent: any) => {
+          if (progressEvent.total) {
+            const p = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(50 + Math.floor(p / 2));
+          }
         });
       }
 

@@ -10,14 +10,14 @@ export const contentApi = {
       api.get<PaginatedResponse<Movie>>("/movies", { params }).then((r) => r.data),
     get: (id: string) =>
       api.get<Movie>(`/movies/${id}`).then((r) => r.data),
-    create: (body: Partial<Movie>) =>
-      api.post<Movie>("/movies", body).then((r) => r.data),
-    update: (id: string, body: Partial<Movie>) =>
-      api.put<Movie>(`/movies/${id}`, body).then((r) => r.data),
+    create: (body: Partial<Movie> | FormData) =>
+      api.post("/movies", body).then((r) => r.data),
+    update: (id: string, body: Partial<Movie> | FormData) =>
+      api.post(`/movies/${id}`, body).then((r) => r.data),
     delete: (id: string): Promise<void> =>
       api.delete(`/movies/${id}`).then(() => undefined),
-    addVideoFile: (id: string, payload: { quality: string; file_url: string; file_size: number; duration_seconds: number; s3_key: string }) =>
-      api.post(`/movies/${id}/video-files`, payload).then((r) => r.data),
+    addVideoFile: (id: string, payload: FormData, onUploadProgress?: (progressEvent: any) => void) =>
+      api.post(`/movies/${id}/video-files`, payload, { onUploadProgress }).then((r) => r.data),
   },
   genres: {
     list: () =>

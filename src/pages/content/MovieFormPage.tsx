@@ -6,7 +6,7 @@ import { uploadApi } from "../../api/upload";
 import { toast } from "../../components/ui/Toast";
 import type { Movie, ContentStatus } from "../../types/models";
 
-const emptyMovie: Partial<Movie> = {
+const emptyMovie: any = {
   title: "",
   description: "",
   releaseYear: new Date().getFullYear(),
@@ -22,6 +22,8 @@ const emptyMovie: Partial<Movie> = {
   includedInSubscription: false,
   status: "draft",
   filmmakerIds: [],
+  cast: [],
+  video_quality: "1080p",
 };
 
 export function MovieFormPage() {
@@ -30,7 +32,7 @@ export function MovieFormPage() {
   const queryClient = useQueryClient();
   const isNew = id === "new" || !id;
 
-  const [form, setForm] = useState<Partial<Movie>>(emptyMovie);
+  const [form, setForm] = useState<any>(emptyMovie);
 
   // File Upload State
   const [posterFile, setPosterFile] = useState<File | null>(null);
@@ -96,17 +98,18 @@ export function MovieFormPage() {
 
       setUploadProgress(30);
 
+      if (!form.title || !form.description) {
+        toast("Title and description are required.", "error");
+        setIsUploading(false);
+        return;
+      }
+
       // Construct JSON payload for the main API request
       const payload: any = {
-        title: form.title || "",
-        description: form.description || "",
-        cast: [
-          {
-            name: "Unknown Actor",
-            role: "Lead Actor",
-          }
-        ],
-        video_quality: "1080p",
+        title: form.title,
+        description: form.description,
+        cast: form.cast || [],
+        video_quality: form.video_quality || "1080p",
         poster_url: finalPosterUrl,
         backdrop_url: finalBackdropUrl,
         trailer_url: finalTrailerUrl,
@@ -194,7 +197,7 @@ export function MovieFormPage() {
               type="text"
               required
               value={form.title ?? ""}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              onChange={(e) => setForm((f: any) => ({ ...f, title: e.target.value }))}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
             />
           </div>
@@ -205,10 +208,89 @@ export function MovieFormPage() {
             <textarea
               rows={4}
               value={form.description ?? ""}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              onChange={(e) => setForm((f: any) => ({ ...f, description: e.target.value }))}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
             />
           </div>
+
+          <div className="sm:col-span-2 space-y-4 border rounded-xl p-4 border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Cast
+              </label>
+              <button
+                type="button"
+                onClick={() => setForm((f: any) => ({ ...f, cast: [...(f.cast || []), { name: "", role: "" }] }))}
+                className="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+              >
+                + Add Cast Member
+              </button>
+            </div>
+            {(form.cast || []).map((castMember: any, idx: number) => (
+              <div key={idx} className="flex gap-4 items-start">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Name (e.g. Jane Doe)"
+                    required
+                    value={castMember.name}
+                    onChange={(e) => {
+                      const newCast = [...(form.cast || [])];
+                      newCast[idx].name = e.target.value;
+                      setForm((f: any) => ({ ...f, cast: newCast }));
+                    }}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                  />
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Role (e.g. Lead Actor)"
+                    required
+                    value={castMember.role}
+                    onChange={(e) => {
+                      const newCast = [...(form.cast || [])];
+                      newCast[idx].role = e.target.value;
+                      setForm((f: any) => ({ ...f, cast: newCast }));
+                    }}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newCast = [...(form.cast || [])];
+                    newCast.splice(idx, 1);
+                    setForm((f: any) => ({ ...f, cast: newCast }));
+                  }}
+                  className="mt-2 text-red-500 hover:text-red-700 font-medium text-sm"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            {(!form.cast || form.cast.length === 0) && (
+              <p className="text-sm text-slate-500 dark:text-slate-400 italic">No cast members added yet.</p>
+            )}
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Video Quality
+            </label>
+            <select
+              value={form.video_quality ?? "1080p"}
+              onChange={(e) => setForm((f: any) => ({ ...f, video_quality: e.target.value }))}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+            >
+              <option value="480p">480p</option>
+              <option value="720p">720p</option>
+              <option value="1080p">1080p</option>
+              <option value="1440p">1440p</option>
+              <option value="4K">4K</option>
+            </select>
+          </div>
+
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
               Release Year
@@ -219,7 +301,7 @@ export function MovieFormPage() {
               max={2100}
               value={form.releaseYear ?? ""}
               onChange={(e) =>
-                setForm((f) => ({ ...f, releaseYear: Number(e.target.value) || undefined }))
+                setForm((f: any) => ({ ...f, releaseYear: Number(e.target.value) || undefined }))
               }
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
             />
@@ -233,7 +315,7 @@ export function MovieFormPage() {
               min={0}
               value={form.duration ?? ""}
               onChange={(e) =>
-                setForm((f) => ({ ...f, duration: Number(e.target.value) || 0 }))
+                setForm((f: any) => ({ ...f, duration: Number(e.target.value) || 0 }))
               }
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
             />
@@ -245,7 +327,7 @@ export function MovieFormPage() {
             <input
               type="text"
               value={form.language ?? ""}
-              onChange={(e) => setForm((f) => ({ ...f, language: e.target.value }))}
+              onChange={(e) => setForm((f: any) => ({ ...f, language: e.target.value }))}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
             />
           </div>
@@ -256,7 +338,7 @@ export function MovieFormPage() {
             <select
               value={form.status ?? "draft"}
               onChange={(e) =>
-                setForm((f) => ({ ...f, status: e.target.value as ContentStatus }))
+                setForm((f: any) => ({ ...f, status: e.target.value as ContentStatus }))
               }
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
             >
@@ -270,7 +352,7 @@ export function MovieFormPage() {
               type="checkbox"
               id="ratingVisible"
               checked={form.ratingVisible ?? true}
-              onChange={(e) => setForm((f) => ({ ...f, ratingVisible: e.target.checked }))}
+              onChange={(e) => setForm((f: any) => ({ ...f, ratingVisible: e.target.checked }))}
               className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
             />
             <label htmlFor="ratingVisible" className="text-sm text-slate-700 dark:text-slate-300">
@@ -283,7 +365,7 @@ export function MovieFormPage() {
               id="includedInSubscription"
               checked={form.includedInSubscription ?? false}
               onChange={(e) =>
-                setForm((f) => ({ ...f, includedInSubscription: e.target.checked }))
+                setForm((f: any) => ({ ...f, includedInSubscription: e.target.checked }))
               }
               className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
             />
@@ -304,7 +386,7 @@ export function MovieFormPage() {
               step={0.01}
               value={form.tvodPrice ?? ""}
               onChange={(e) =>
-                setForm((f) => ({
+                setForm((f: any) => ({
                   ...f,
                   tvodPrice: e.target.value ? Number(e.target.value) : undefined,
                 }))

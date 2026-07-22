@@ -1,5 +1,5 @@
 import { api, setStoredToken, setStoredRefreshToken } from "./client";
-import type { LoginPayload, AuthResponse } from "../types/auth";
+import type { LoginPayload } from "../types/auth";
 
 export const authApi = {
   login: async (payload: LoginPayload): Promise<any> => {

@@ -8,13 +8,8 @@ import {
   type ReactNode,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
 import { authApi } from "../api/auth";
-import {
-  getStoredToken,
-  setStoredToken,
-  clearStoredTokens,
-} from "../api/client";
+import { getStoredToken, clearStoredTokens } from "../api/client";
 import type { AdminUser, LoginPayload } from "../types/auth";
 
 interface AuthState {

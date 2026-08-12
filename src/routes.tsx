@@ -5,6 +5,7 @@ import { LoginPage } from "./components/auth/LoginPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { MoviesPage } from "./pages/content/MoviesPage";
 import { MovieFormPage } from "./pages/content/MovieFormPage";
+import { ShowUploadPage } from "./pages/content/ShowUpload/ShowUploadPage";
 import { GenresPage } from "./pages/content/GenresPage";
 import { CategoriesPage } from "./pages/content/CategoriesPage";
 import { FilmmakersPage } from "./pages/FilmmakersPage";
@@ -52,6 +53,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission="content:movies">
             <MovieFormPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "content/shows/new",
+        element: (
+          <ProtectedRoute permission="content:movies">
+            <ShowUploadPage />
           </ProtectedRoute>
         ),
       },

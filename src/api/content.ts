@@ -4,9 +4,21 @@ import { mockDb, mockDelay } from "../data/mockDb";
 import type { PaginatedResponse, ListParams } from "../types/api";
 import type { Movie, Genre, Category } from "../types/models";
 
-/** Unwrap the common backend envelope: { success, data: { movie/show/... } } */
-function unwrapMovie(raw: any): Movie {
-  return raw?.data?.movie ?? raw?.data ?? raw;
+/** Unwrap the common backend envelopes:
+ *  { data: { movie: {...} } }
+ *  { data: { data: {...} } }
+ *  { data: {...} }
+ *  { movie: {...} }
+ *  raw object (already the movie)
+ */
+function unwrapMovie(raw: any): any {
+  return (
+    raw?.data?.movie ??
+    raw?.data?.data ??
+    raw?.data ??
+    raw?.movie ??
+    raw
+  );
 }
 
 function unwrapSeries(raw: any): any {

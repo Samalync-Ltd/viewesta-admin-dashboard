@@ -52,13 +52,22 @@ export function MoviesPage() {
             Manage movies and TV shows
           </p>
         </div>
-        <Link
-          to="/content/movies/new"
-          className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 font-medium text-white hover:bg-primary-700"
-        >
-          <Plus className="h-5 w-5" />
-          Add Movie
-        </Link>
+        <div className="flex gap-3">
+          <Link
+            to="/content/movies/new"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 font-medium text-white hover:bg-primary-700"
+          >
+            <Plus className="h-5 w-5" />
+            Add Movie
+          </Link>
+          <Link
+            to="/content/shows/new"
+            className="inline-flex items-center gap-2 rounded-lg border border-primary-600 px-4 py-2.5 font-medium text-primary-600 hover:bg-primary-50 dark:border-primary-400 dark:text-primary-400 dark:hover:bg-primary-900/20"
+          >
+            <Plus className="h-5 w-5" />
+            Add Series
+          </Link>
+        </div>
       </div>
 
       <div className="flex gap-4">

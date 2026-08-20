@@ -20,7 +20,7 @@ const emptyMovie: any = {
   streamingUrl: "",
   tvodPrice: undefined,
   includedInSubscription: false,
-  status: "draft",
+  status: "published",
   filmmakerIds: [],
   cast: [],
   video_quality: "1080p",
@@ -113,11 +113,14 @@ export function MovieFormPage() {
         poster_url: finalPosterUrl,
         backdrop_url: finalBackdropUrl,
         trailer_url: finalTrailerUrl,
+        status: form.status,
+        duration: form.duration,
+        language: form.language,
+        release_year: form.releaseYear,
+        tvod_price: form.tvodPrice,
+        included_in_subscription: form.includedInSubscription,
+        rating_visible: form.ratingVisible,
       };
-
-      if (!isNew) {
-        payload._method = "PUT";
-      }
 
       let movieId = id;
       if (isNew) {
@@ -336,14 +339,15 @@ export function MovieFormPage() {
               Status
             </label>
             <select
-              value={form.status ?? "draft"}
+              value={form.status ?? "published"}
               onChange={(e) =>
                 setForm((f: any) => ({ ...f, status: e.target.value as ContentStatus }))
               }
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
             >
-              <option value="draft">Draft</option>
+              <option value="approved">Approved</option>
               <option value="published">Published</option>
+              <option value="draft">Draft</option>
               <option value="archived">Archived</option>
             </select>
           </div>
@@ -378,11 +382,12 @@ export function MovieFormPage() {
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-              TVOD Price (optional)
+              TVOD Price <span className="text-red-500">*</span>
             </label>
             <input
               type="number"
-              min={0}
+              required
+              min={0.01}
               step={0.01}
               value={form.tvodPrice ?? ""}
               onChange={(e) =>

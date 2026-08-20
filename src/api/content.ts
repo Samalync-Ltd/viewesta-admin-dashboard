@@ -4,12 +4,21 @@ import { mockDb, mockDelay } from "../data/mockDb";
 import type { PaginatedResponse, ListParams } from "../types/api";
 import type { Movie, Genre, Category } from "../types/models";
 
+/** Unwrap the common backend envelope: { success, data: { movie/show/... } } */
+function unwrapMovie(raw: any): Movie {
+  return raw?.data?.movie ?? raw?.data ?? raw;
+}
+
+function unwrapSeries(raw: any): any {
+  return raw?.data?.series ?? raw?.data?.show ?? raw?.data ?? raw;
+}
+
 export const contentApi = {
   movies: {
     list: (params?: ListParams) =>
       api.get<PaginatedResponse<Movie>>("/movies", { params }).then((r) => r.data),
     get: (id: string) =>
-      api.get<Movie>(`/movies/${id}`).then((r) => r.data),
+      api.get(`/movies/${id}`).then((r) => unwrapMovie(r.data)),
     create: (body: Partial<Movie> | FormData) =>
       api.post("/movies", body).then((r) => r.data),
     update: (id: string, body: Partial<Movie> | FormData) =>
@@ -18,6 +27,26 @@ export const contentApi = {
       api.delete(`/movies/${id}`).then(() => undefined),
     addVideoFile: (id: string, payload: FormData, onUploadProgress?: (progressEvent: any) => void) =>
       api.post(`/movies/${id}/video-files`, payload, { onUploadProgress }).then((r) => r.data),
+  },
+  series: {
+    create: (body: any) =>
+      api.post("/series", body).then((r) => unwrapSeries(r.data)),
+    update: (id: string, body: any) =>
+      api.post(`/series/${id}`, body).then((r) => unwrapSeries(r.data)),
+    addEpisodeVideo: (
+      seriesId: string,
+      seasonNumber: number,
+      episodeNumber: number,
+      payload: FormData,
+      onUploadProgress?: (progressEvent: any) => void
+    ) =>
+      api
+        .post(
+          `/series/${seriesId}/seasons/${seasonNumber}/episodes/${episodeNumber}/video`,
+          payload,
+          { onUploadProgress }
+        )
+        .then((r) => r.data),
   },
   genres: {
     list: () =>

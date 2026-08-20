@@ -1,4 +1,5 @@
-export type ContentStatus = "draft" | "published" | "archived";
+export type ContentStatus = "draft" | "published" | "approved" | "archived";
+
 
 export interface Movie {
   id: string;

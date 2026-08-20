@@ -10,6 +10,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { authApi } from "../api/auth";
 import { getStoredToken, clearStoredTokens } from "../api/client";
+import { unregisterPushNotifications } from "../api/notifications";
 import type { AdminUser, LoginPayload } from "../types/auth";
 
 interface AuthState {
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
+    void unregisterPushNotifications();
     clearStoredTokens();
     setToken(null);
     queryClient.clear();

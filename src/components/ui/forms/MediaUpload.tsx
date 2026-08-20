@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { UploadCloud, X, Film, Image as ImageIcon } from "lucide-react";
+import { UploadCloud, X, Film } from "lucide-react";
 import { clsx } from "clsx";
 
 interface MediaUploadProps {

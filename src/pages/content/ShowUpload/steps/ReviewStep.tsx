@@ -1,4 +1,3 @@
-import React from "react";
 import type { ShowFormData } from "../../../../types/show";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 

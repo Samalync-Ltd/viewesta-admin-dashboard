@@ -204,6 +204,10 @@ export async function unregisterPushNotifications(): Promise<void> {
 }
 
 export async function refreshFCMToken(): Promise<void> {
+  // Only attempt refresh if this device was previously registered
+  const storedToken = localStorage.getItem(FCM_TOKEN_KEY);
+  if (!storedToken) return;
+
   try {
     const messaging = await initializeMessaging();
     const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
@@ -217,15 +221,15 @@ export async function refreshFCMToken(): Promise<void> {
     });
     if (!currentToken) return;
 
-    const storedToken = localStorage.getItem(FCM_TOKEN_KEY);
     if (storedToken !== currentToken) {
-      if (storedToken) await unregisterDevice(storedToken);
+      await unregisterDevice(storedToken);
       await registerDevice(currentToken);
     }
   } catch (err) {
     console.warn("[Notifications] Token refresh failed:", err);
   }
 }
+
 
 export async function onForegroundMessage(
   callback: (payload: { notification?: { title?: string; body?: string }; data?: Record<string, string> }) => void

@@ -10,12 +10,27 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+/** Returns true only when all required Firebase config values are present. */
+const isConfigValid =
+  Boolean(firebaseConfig.apiKey) &&
+  Boolean(firebaseConfig.projectId) &&
+  Boolean(firebaseConfig.appId) &&
+  !firebaseConfig.apiKey.includes("undefined");
+
+export const app = isConfigValid
+  ? getApps().length === 0
+    ? initializeApp(firebaseConfig)
+    : getApp()
+  : null;
 
 let messagingInstance: Messaging | null = null;
 let messagingPromise: Promise<Messaging | null> | null = null;
 
 export async function initializeMessaging(): Promise<Messaging | null> {
+  if (!app) {
+    console.warn("[Firebase] App not initialized — Firebase config is missing or invalid.");
+    return null;
+  }
   if (messagingInstance) return messagingInstance;
   if (messagingPromise) return messagingPromise;
 

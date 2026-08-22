@@ -16,15 +16,15 @@ function normaliseMovieFromBackend(raw: any): FormState {
   return {
     title:                  raw.title                   ?? "",
     description:            raw.description             ?? "",
-    releaseYear:            raw.release_year            ?? raw.releaseYear            ?? new Date().getFullYear(),
-    duration:               raw.duration                ?? 0,
+    releaseYear:            raw.release_year            ?? raw.releaseYear            ?? (raw.release_date ? new Date(raw.release_date).getFullYear() : new Date().getFullYear()),
+    duration:               raw.duration_minutes        ?? raw.duration               ?? 0,
     language:               raw.language                ?? "en",
     ratingVisible:          raw.rating_visible          ?? raw.ratingVisible          ?? true,
     posterUrl:              raw.poster_url              ?? raw.posterUrl              ?? "",
     backdropUrl:            raw.backdrop_url            ?? raw.backdropUrl            ?? "",
-    trailerUrl:             raw.trailer_url             ?? raw.trailerUrl             ?? "",
-    streamingUrl:           raw.streaming_url           ?? raw.streamingUrl           ?? "",
-    tvodPrice:              raw.tvod_price              ?? raw.tvodPrice              ?? undefined,
+    trailerUrl:             raw.trailer_url             ?? raw.trailerUrl             ?? raw.trailer ?? raw.trailerVideoUrl ?? "",
+    streamingUrl:           raw.streaming_url           ?? raw.streamingUrl           ?? raw.videoUrl ?? raw.video_url ?? raw.mainVideoUrl ?? raw.main_video_url ?? "",
+    tvodPrice:              raw.price != null           ? Number(raw.price)           : (raw.tvod_price != null ? Number(raw.tvod_price) : (raw.tvodPrice != null ? Number(raw.tvodPrice) : undefined)),
     includedInSubscription: raw.included_in_subscription ?? raw.includedInSubscription ?? false,
     status:                 raw.status                  ?? "published",
     videoQuality:           raw.video_quality           ?? raw.videoQuality           ?? "1080p",
@@ -48,13 +48,16 @@ function buildPayload(form: FormState, urls: { poster: string; backdrop: string;
     title:                    form.title,
     description:              form.description,
     release_year:             form.releaseYear,
+    release_date:             `${form.releaseYear}-01-01`,
     duration:                 form.duration,
+    duration_minutes:         form.duration,
     language:                 form.language,
     rating_visible:           form.ratingVisible,
     poster_url:               urls.poster,
     backdrop_url:             urls.backdrop,
     trailer_url:              urls.trailer,
     tvod_price:               form.tvodPrice,
+    price:                    form.tvodPrice,
     included_in_subscription: form.includedInSubscription,
     status:                   form.status,
     video_quality:            form.videoQuality,
@@ -409,16 +412,15 @@ export function MovieFormPage() {
             {/* TVOD Price */}
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                TVOD Price <span className="text-red-500">*</span>
+                TVOD Price
               </label>
               <input
                 type="number"
-                required
-                min={0.01}
+                min={0}
                 step={0.01}
-                value={form.tvodPrice ?? ""}
+                value={form.tvodPrice !== undefined ? form.tvodPrice : ""}
                 onChange={(e) =>
-                  set({ tvodPrice: e.target.value ? Number(e.target.value) : undefined })
+                  set({ tvodPrice: e.target.value !== "" ? Number(e.target.value) : undefined })
                 }
                 className={inputCls}
               />
@@ -578,7 +580,12 @@ export function MovieFormPage() {
                 onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
                 className={inputCls}
               />
-              {!isNew && (
+              {!isNew && form.streamingUrl && (
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  ✓ Main video exists — leave empty to keep
+                </p>
+              )}
+              {!isNew && !form.streamingUrl && (
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   Leave empty to keep existing video
                 </p>

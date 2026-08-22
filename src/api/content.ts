@@ -34,7 +34,7 @@ export const contentApi = {
     create: (body: Partial<Movie> | FormData) =>
       api.post("/movies", body).then((r) => r.data),
     update: (id: string, body: Partial<Movie> | FormData) =>
-      api.post(`/movies/${id}`, body).then((r) => r.data),
+      api.put(`/movies/${id}`, body).then((r) => r.data),
     delete: (id: string): Promise<void> =>
       api.delete(`/movies/${id}`).then(() => undefined),
     addVideoFile: (id: string, payload: FormData, onUploadProgress?: (progressEvent: any) => void) =>
@@ -44,7 +44,7 @@ export const contentApi = {
     create: (body: any) =>
       api.post("/series", body).then((r) => unwrapSeries(r.data)),
     update: (id: string, body: any) =>
-      api.post(`/series/${id}`, body).then((r) => unwrapSeries(r.data)),
+      api.put(`/series/${id}`, body).then((r) => unwrapSeries(r.data)),
     addEpisodeVideo: (
       seriesId: string,
       seasonNumber: number,

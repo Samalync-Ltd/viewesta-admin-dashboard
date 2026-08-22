@@ -14,23 +14,23 @@ import type { ContentStatus } from "../../types/models";
 function normaliseMovieFromBackend(raw: any): FormState {
   // Accept both snake_case (backend) and camelCase (frontend cache) spellings
   return {
-    title:                  raw.title                   ?? "",
-    description:            raw.description             ?? "",
-    releaseYear:            raw.release_year            ?? raw.releaseYear            ?? (raw.release_date ? new Date(raw.release_date).getFullYear() : new Date().getFullYear()),
-    duration:               raw.duration_minutes        ?? raw.duration               ?? 0,
-    language:               raw.language                ?? "en",
-    ratingVisible:          raw.rating_visible          ?? raw.ratingVisible          ?? true,
-    posterUrl:              raw.poster_url              ?? raw.posterUrl              ?? "",
-    backdropUrl:            raw.backdrop_url            ?? raw.backdropUrl            ?? "",
-    trailerUrl:             raw.trailer_url             ?? raw.trailerUrl             ?? raw.trailer ?? raw.trailerVideoUrl ?? "",
-    streamingUrl:           raw.streaming_url           ?? raw.streamingUrl           ?? raw.videoUrl ?? raw.video_url ?? raw.mainVideoUrl ?? raw.main_video_url ?? "",
-    tvodPrice:              raw.price != null           ? Number(raw.price)           : (raw.tvod_price != null ? Number(raw.tvod_price) : (raw.tvodPrice != null ? Number(raw.tvodPrice) : undefined)),
+    title: raw.title ?? "",
+    description: raw.description ?? "",
+    releaseYear: raw.release_year ?? raw.releaseYear ?? (raw.release_date ? new Date(raw.release_date).getFullYear() : new Date().getFullYear()),
+    duration: raw.duration_minutes ?? raw.duration ?? 0,
+    language: raw.language ?? "en",
+    ratingVisible: raw.rating_visible ?? raw.ratingVisible ?? true,
+    posterUrl: raw.poster_url ?? raw.posterUrl ?? "",
+    backdropUrl: raw.backdrop_url ?? raw.backdropUrl ?? "",
+    trailerUrl: raw.trailer_url ?? raw.trailerUrl ?? raw.trailer ?? raw.trailerVideoUrl ?? "",
+    streamingUrl: raw.streaming_url ?? raw.streamingUrl ?? raw.videoUrl ?? raw.video_url ?? raw.mainVideoUrl ?? raw.main_video_url ?? "",
+    tvodPrice: raw.price != null ? Number(raw.price) : (raw.tvod_price != null ? Number(raw.tvod_price) : (raw.tvodPrice != null ? Number(raw.tvodPrice) : undefined)),
     includedInSubscription: raw.included_in_subscription ?? raw.includedInSubscription ?? false,
-    status:                 raw.status                  ?? "published",
-    videoQuality:           raw.video_quality           ?? raw.videoQuality           ?? "1080p",
-    genres:                 raw.genres                  ?? [],
-    cast:                   normaliseCast(raw.cast)     ?? [],
-    filmmakerIds:           raw.filmmaker_ids           ?? raw.filmmakerIds           ?? [],
+    status: raw.status ?? "published",
+    videoQuality: raw.video_quality ?? raw.videoQuality ?? "1080p",
+    genres: raw.genres ?? [],
+    cast: normaliseCast(raw.cast) ?? [],
+    filmmakerIds: raw.filmmaker_ids ?? raw.filmmakerIds ?? [],
   };
 }
 
@@ -45,25 +45,25 @@ function normaliseCast(cast: any[]): { name: string; role: string }[] {
 
 function buildPayload(form: FormState, urls: { poster: string; backdrop: string; trailer: string }) {
   return {
-    title:                    form.title,
-    description:              form.description,
-    release_year:             form.releaseYear,
-    release_date:             `${form.releaseYear}-01-01`,
-    duration:                 form.duration,
-    duration_minutes:         form.duration,
-    language:                 form.language,
-    rating_visible:           form.ratingVisible,
-    poster_url:               urls.poster,
-    backdrop_url:             urls.backdrop,
-    trailer_url:              urls.trailer,
-    tvod_price:               form.tvodPrice,
-    price:                    form.tvodPrice,
+    title: form.title,
+    description: form.description,
+    release_year: form.releaseYear,
+    release_date: `${form.releaseYear}-01-01`,
+    duration: form.duration,
+    duration_minutes: form.duration,
+    language: form.language,
+    rating_visible: form.ratingVisible,
+    poster_url: urls.poster,
+    backdrop_url: urls.backdrop,
+    trailer_url: urls.trailer,
+    tvod_price: form.tvodPrice,
+    price: form.tvodPrice,
     included_in_subscription: form.includedInSubscription,
-    status:                   form.status,
-    video_quality:            form.videoQuality,
-    cast:                     form.cast,
-    genres:                   form.genres,
-    filmmaker_ids:            form.filmmakerIds,
+    status: form.status,
+    video_quality: form.videoQuality,
+    cast: form.cast,
+    genres: form.genres,
+    filmmaker_ids: form.filmmakerIds,
   };
 }
 
@@ -179,9 +179,9 @@ export function MovieFormPage() {
       setUploadProgress(0);
 
       // ── 1. Upload images/trailer to S3 ─────────────────────────────────────
-      let finalPosterUrl   = form.posterUrl   || "";
+      let finalPosterUrl = form.posterUrl || "";
       let finalBackdropUrl = form.backdropUrl || "";
-      let finalTrailerUrl  = form.trailerUrl  || "";
+      let finalTrailerUrl = form.trailerUrl || "";
 
       if (posterFile) {
         setUploadStatus("Uploading poster...");
@@ -209,9 +209,9 @@ export function MovieFormPage() {
 
       // ── 2. Create or update metadata ───────────────────────────────────────
       const payload = buildPayload(form, {
-        poster:   finalPosterUrl,
+        poster: finalPosterUrl,
         backdrop: finalBackdropUrl,
-        trailer:  finalTrailerUrl,
+        trailer: finalTrailerUrl,
       });
 
       let movieId = id;

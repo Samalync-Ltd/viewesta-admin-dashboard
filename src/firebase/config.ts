@@ -10,6 +10,13 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+
+
+
+
+
+// test
+
 /** Returns true only when all required Firebase config values are present. */
 const isConfigValid =
   Boolean(firebaseConfig.apiKey) &&

@@ -35,16 +35,6 @@ export interface NotificationListResponse {
 const resolveData = <T>(response: { data?: { data?: T } | T }): T =>
   ((response.data as { data?: T })?.data ?? response.data ?? {}) as T;
 
-function getDeviceName(): string {
-  const ua = navigator.userAgent || "";
-  if (ua.includes("Edg/") || ua.includes("Edge/")) return "Edge";
-  if (ua.includes("Chrome")) return "Chrome";
-  if (ua.includes("Firefox")) return "Firefox";
-  if (ua.includes("Safari")) return "Safari";
-  if (ua.includes("Opera")) return "Opera";
-  return "Unknown Browser";
-}
-
 function getServiceWorkerUrl(): string {
   const config = new URLSearchParams({
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? "",
@@ -123,10 +113,16 @@ export async function registerDevice(token: string): Promise<void> {
     return;
   }
 
+  let device_id = localStorage.getItem("viewesta_admin_device_id");
+  if (!device_id) {
+    device_id = "web-" + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem("viewesta_admin_device_id", device_id);
+  }
+
   await api.post("/notifications/devices/register", {
     token,
-    deviceType: "web",
-    deviceName: getDeviceName(),
+    platform: "web",
+    device_id: device_id,
   });
   localStorage.setItem(FCM_TOKEN_KEY, token);
 }

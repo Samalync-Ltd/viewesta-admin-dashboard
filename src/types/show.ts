@@ -8,6 +8,24 @@ export interface CastMember {
   actorImage?: File | null;
 }
 
+export interface Episode {
+  id: string;
+  episodeNumber: number;
+  title: string;
+  description: string;
+  duration: number;
+  thumbnail?: File | null;
+  videoFile?: File | null;
+}
+
+export interface Season {
+  id: string;
+  seasonNumber: number;
+  title: string;
+  description: string;
+  episodes: Episode[];
+}
+
 export interface ShowFormData {
   // Basic Information
   title: string;
@@ -28,4 +46,12 @@ export interface ShowFormData {
 
   // Cast
   cast: CastMember[];
+
+  // Seasons
+  seasons: Season[];
+
+  // Access Settings
+  accessType: string;
+  price?: number;
+  isFeatured: boolean;
 }

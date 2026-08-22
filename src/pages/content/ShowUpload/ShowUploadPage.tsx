@@ -20,6 +20,10 @@ const initialData: ShowFormData = {
   producerName: "",
   durationMinutes: "",
   cast: [],
+  seasons: [],
+  accessType: "Free",
+  price: undefined,
+  isFeatured: false,
 };
 
 const STEPS = [

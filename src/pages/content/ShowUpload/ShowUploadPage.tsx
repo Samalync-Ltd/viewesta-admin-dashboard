@@ -5,8 +5,6 @@ import { BasicInfoStep } from "./steps/BasicInfoStep";
 import { ProductionInfoStep } from "./steps/ProductionInfoStep";
 import { MediaStep } from "./steps/MediaStep";
 import { CastStep } from "./steps/CastStep";
-import { SeasonsStep } from "./steps/SeasonsStep";
-import { AccessSettingsStep } from "./steps/AccessSettingsStep";
 import { ReviewStep } from "./steps/ReviewStep";
 import { toast } from "../../../components/ui/Toast";
 import { contentApi } from "../../../api/content";
@@ -14,22 +12,14 @@ import { uploadApi } from "../../../api/upload";
 
 const initialData: ShowFormData = {
   title: "",
-  shortDescription: "",
-  fullSynopsis: "",
-  language: "",
-  country: "",
-  genre: "",
+  description: "",
+  categoryId: "",
   ageRating: "",
-  releaseDate: "",
-  status: "published",
-  director: "",
-  producer: "",
-  productionCompany: "",
-  gallery: [],
+  releaseYear: "",
+  directorName: "",
+  producerName: "",
+  durationMinutes: "",
   cast: [],
-  seasons: [],
-  accessType: "Free",
-  isFeatured: false,
 };
 
 const STEPS = [
@@ -37,8 +27,6 @@ const STEPS = [
   "Production",
   "Media",
   "Cast",
-  "Seasons",
-  "Access",
   "Review",
 ];
 
@@ -102,45 +90,23 @@ export function ShowUploadPage() {
       setUploadStatus("Creating series...");
 
       // ── Step 2: POST series metadata ───────────────────────────────────────
-      const totalEpisodes = formData.seasons.reduce(
-        (acc, s) => acc + s.episodes.length,
-        0
-      );
-
       const seriesPayload = {
+        content_type: "series",
         title: formData.title,
-        short_description: formData.shortDescription,
-        full_synopsis: formData.fullSynopsis,
-        language: formData.language,
-        country: formData.country,
-        genre: formData.genre,
+        description: formData.description,
+        category_id: formData.categoryId,
         age_rating: formData.ageRating,
-        release_date: formData.releaseDate,
-        status: formData.status,
-        director: formData.director,
-        producer: formData.producer,
-        production_company: formData.productionCompany,
-        is_featured: formData.isFeatured,
-        access_type: formData.accessType,
-        price: formData.price,
+        release_year: formData.releaseYear ? parseInt(formData.releaseYear.split('-')[0]) : new Date().getFullYear(),
+        director_name: formData.directorName,
+        producer_name: formData.producerName,
         poster_url: posterUrl,
         backdrop_url: backdropUrl,
         trailer_url: trailerUrl,
+        duration_minutes: formData.durationMinutes ? parseInt(formData.durationMinutes) : 45,
         cast: formData.cast.map((c) => ({
-          actor_name: c.actorName,
-          character_name: c.characterName,
+          name: c.name,
+          character: c.character,
           role: c.role,
-        })),
-        seasons: formData.seasons.map((season) => ({
-          season_number: season.seasonNumber,
-          title: season.title,
-          description: season.description,
-          episodes: season.episodes.map((ep) => ({
-            episode_number: ep.episodeNumber,
-            title: ep.title,
-            description: ep.description,
-            duration: ep.duration,
-          })),
         })),
       };
 
@@ -152,51 +118,13 @@ export function ShowUploadPage() {
         throw new Error("Series created but no ID returned from server.");
       }
 
-      // ── Step 3: Upload episode videos ──────────────────────────────────────
-      let episodesDone = 0;
-      const progressPerEpisode = totalEpisodes > 0 ? 70 / totalEpisodes : 0;
-
-      for (const season of formData.seasons) {
-        for (const episode of season.episodes) {
-          if (episode.videoFile) {
-            setUploadStatus(
-              `Uploading S${season.seasonNumber}E${episode.episodeNumber}: ${episode.title}...`
-            );
-            const videoFormData = new FormData();
-            videoFormData.append("video", episode.videoFile);
-            videoFormData.append("duration_seconds", (episode.duration * 60).toString());
-
-            await contentApi.series.addEpisodeVideo(
-              seriesId,
-              season.seasonNumber,
-              episode.episodeNumber,
-              videoFormData,
-              (progressEvent: any) => {
-                if (progressEvent.total) {
-                  const epProgress = Math.round(
-                    (progressEvent.loaded * 100) / progressEvent.total
-                  );
-                  setUploadProgress(
-                    30 +
-                      episodesDone * progressPerEpisode +
-                      (epProgress / 100) * progressPerEpisode
-                  );
-                }
-              }
-            );
-          }
-          episodesDone++;
-          setUploadProgress(30 + episodesDone * progressPerEpisode);
-        }
-      }
-
       setUploadProgress(100);
       setUploadStatus("Done!");
       toast("Series uploaded successfully!", "success");
 
       setTimeout(() => {
-        navigate("/content/movies");
-      }, 600);
+        navigate("/content/shows");
+      }, 1500);
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ||
@@ -305,22 +233,6 @@ export function ShowUploadPage() {
           />
         )}
         {currentStep === 4 && (
-          <SeasonsStep
-            data={formData}
-            updateData={(d) => setFormData({ ...formData, ...d })}
-            onNext={handleNext}
-            onBack={handleBack}
-          />
-        )}
-        {currentStep === 5 && (
-          <AccessSettingsStep
-            data={formData}
-            updateData={(d) => setFormData({ ...formData, ...d })}
-            onNext={handleNext}
-            onBack={handleBack}
-          />
-        )}
-        {currentStep === 6 && (
           <ReviewStep
             data={formData}
             onBack={handleBack}

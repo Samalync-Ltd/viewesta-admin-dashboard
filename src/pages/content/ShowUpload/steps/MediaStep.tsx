@@ -1,6 +1,7 @@
 import React from "react";
 import type { StepProps } from "./types";
 import { MediaUpload } from "../../../../components/ui/forms/MediaUpload";
+import { FormInput } from "../../../../components/ui/forms/FormInput";
 
 export function MediaStep({ data, updateData, onNext, onBack }: StepProps) {
   const handleSubmit = (e: React.FormEvent) => {
@@ -50,13 +51,13 @@ export function MediaStep({ data, updateData, onNext, onBack }: StepProps) {
         </div>
 
         <div className="sm:col-span-2">
-          <MediaUpload
-            label="Image Gallery"
-            accept="image/*"
-            multiple
-            maxFiles={10}
-            value={data.gallery}
-            onChange={(files) => updateData({ gallery: files })}
+          <FormInput
+            label="Average Episode Duration (Minutes)"
+            type="number"
+            required
+            value={data.durationMinutes}
+            onChange={(e) => updateData({ durationMinutes: e.target.value })}
+            placeholder="e.g. 45"
           />
         </div>
       </div>

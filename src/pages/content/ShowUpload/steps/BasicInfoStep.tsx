@@ -1,10 +1,17 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import type { StepProps } from "./types";
 import { FormInput } from "../../../../components/ui/forms/FormInput";
 import { FormTextarea } from "../../../../components/ui/forms/FormTextarea";
 import { FormSelect } from "../../../../components/ui/forms/FormSelect";
+import { contentApi } from "../../../../api/content";
 
 export function BasicInfoStep({ data, updateData, onNext }: StepProps) {
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    contentApi.categories.list().then(setCategories).catch(console.error);
+  }, []);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (onNext) onNext();
@@ -25,48 +32,24 @@ export function BasicInfoStep({ data, updateData, onNext }: StepProps) {
         
         <div className="sm:col-span-2">
           <FormTextarea
-            label="Short Description"
+            label="Description"
             required
-            rows={2}
-            value={data.shortDescription}
-            onChange={(e) => updateData({ shortDescription: e.target.value })}
+            rows={4}
+            value={data.description}
+            onChange={(e) => updateData({ description: e.target.value })}
             placeholder="A brief summary of the series..."
           />
         </div>
 
-        <div className="sm:col-span-2">
-          <FormTextarea
-            label="Full Synopsis"
-            required
-            rows={5}
-            value={data.fullSynopsis}
-            onChange={(e) => updateData({ fullSynopsis: e.target.value })}
-            placeholder="Detailed storyline..."
-          />
-        </div>
-
-        <FormInput
-          label="Language"
+        <FormSelect
+          label="Category"
           required
-          value={data.language}
-          onChange={(e) => updateData({ language: e.target.value })}
-          placeholder="e.g. English"
-        />
-
-        <FormInput
-          label="Country"
-          required
-          value={data.country}
-          onChange={(e) => updateData({ country: e.target.value })}
-          placeholder="e.g. USA"
-        />
-
-        <FormInput
-          label="Genre"
-          required
-          value={data.genre}
-          onChange={(e) => updateData({ genre: e.target.value })}
-          placeholder="e.g. Drama, Thriller"
+          value={data.categoryId}
+          onChange={(e) => updateData({ categoryId: e.target.value })}
+          options={[
+            { label: "Select Category", value: "" },
+            ...categories.map((c) => ({ label: c.name, value: c.id }))
+          ]}
         />
 
         <FormInput
@@ -78,23 +61,12 @@ export function BasicInfoStep({ data, updateData, onNext }: StepProps) {
         />
 
         <FormInput
-          label="Release Date"
-          type="date"
+          label="Release Year"
+          type="number"
           required
-          value={data.releaseDate}
-          onChange={(e) => updateData({ releaseDate: e.target.value })}
-        />
-
-        <FormSelect
-          label="Status"
-          required
-          value={data.status}
-          onChange={(e) => updateData({ status: e.target.value as any })}
-          options={[
-            { label: "Draft", value: "draft" },
-            { label: "Published", value: "published" },
-            { label: "Archived", value: "archived" },
-          ]}
+          value={data.releaseYear}
+          onChange={(e) => updateData({ releaseYear: e.target.value })}
+          placeholder="e.g. 2025"
         />
       </div>
 

@@ -166,6 +166,11 @@ export function MovieFormPage() {
       return;
     }
 
+    if (form.duration <= 0) {
+      toast("Duration must be greater than 0 minutes.", "error");
+      return;
+    }
+
     try {
       setIsUploading(true);
       setUploadProgress(0);

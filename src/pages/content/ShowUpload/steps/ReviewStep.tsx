@@ -13,16 +13,11 @@ export function ReviewStep({ data, onBack, onSubmit, isSubmitting }: ReviewStepP
   const missingFields: string[] = [];
   
   if (!data.title) missingFields.push("Series Title");
-  if (!data.shortDescription) missingFields.push("Short Description");
+  if (!data.description) missingFields.push("Description");
   if (!data.poster) missingFields.push("Poster Image");
   if (!data.backdrop) missingFields.push("Backdrop Image");
-  if (data.seasons.length === 0) missingFields.push("At least one Season");
-  if (data.seasons.some(s => s.episodes.length === 0)) missingFields.push("All seasons must have at least one episode");
-  if (data.seasons.some(s => s.episodes.some(e => !e.videoFile))) missingFields.push("All episodes must have a video file");
 
   const isValid = missingFields.length === 0;
-
-  const episodeCount = data.seasons.reduce((acc, season) => acc + season.episodes.length, 0);
 
   return (
     <div className="space-y-8">
@@ -63,16 +58,12 @@ export function ReviewStep({ data, onBack, onSubmit, isSubmitting }: ReviewStepP
               <dd className="font-medium text-slate-900 dark:text-slate-100">{data.title || "-"}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Genre</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">{data.genre || "-"}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Rating</dt>
+              <dt className="text-slate-500 dark:text-slate-400">Age Rating</dt>
               <dd className="font-medium text-slate-900 dark:text-slate-100">{data.ageRating || "-"}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Status</dt>
-              <dd className="font-medium text-slate-900 capitalize dark:text-slate-100">{data.status}</dd>
+              <dt className="text-slate-500 dark:text-slate-400">Release Year</dt>
+              <dd className="font-medium text-slate-900 dark:text-slate-100">{data.releaseYear || "-"}</dd>
             </div>
           </dl>
         </div>
@@ -81,12 +72,12 @@ export function ReviewStep({ data, onBack, onSubmit, isSubmitting }: ReviewStepP
           <h4 className="mb-4 text-sm font-medium text-slate-900 dark:text-slate-100">Content Summary</h4>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Seasons</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">{data.seasons.length}</dd>
+              <dt className="text-slate-500 dark:text-slate-400">Director</dt>
+              <dd className="font-medium text-slate-900 dark:text-slate-100">{data.directorName || "-"}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Total Episodes</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">{episodeCount}</dd>
+              <dt className="text-slate-500 dark:text-slate-400">Producer</dt>
+              <dd className="font-medium text-slate-900 dark:text-slate-100">{data.producerName || "-"}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-slate-500 dark:text-slate-400">Cast Members</dt>
@@ -109,10 +100,6 @@ export function ReviewStep({ data, onBack, onSubmit, isSubmitting }: ReviewStepP
             <div className="flex items-center gap-2 text-sm">
               {data.trailer ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <span className="h-4 w-4 rounded-full border border-slate-300 dark:border-slate-600" />}
               <span className="text-slate-700 dark:text-slate-300">Trailer</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="font-medium text-slate-900 dark:text-slate-100">{data.gallery.length}</span>
-              <span className="text-slate-700 dark:text-slate-300">Gallery Images</span>
             </div>
           </div>
         </div>

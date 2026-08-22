@@ -10,7 +10,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { authApi } from "../api/auth";
 import { getStoredToken, clearStoredTokens } from "../api/client";
-import { unregisterPushNotifications } from "../api/notifications";
+import { unregisterPushNotifications, registerPushNotifications } from "../api/notifications";
 import type { AdminUser, LoginPayload } from "../types/auth";
 
 interface AuthState {
@@ -61,6 +61,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await authApi.login(payload);
       setToken(res.token);
       await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+
+      // Register push notifications silently in background (same as frontend)
+      registerPushNotifications().catch((err) => {
+        console.warn("[Auth] Push notification registration failed silently:", err);
+      });
     },
     [queryClient]
   );

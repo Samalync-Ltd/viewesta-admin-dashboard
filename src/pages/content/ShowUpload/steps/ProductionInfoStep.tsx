@@ -24,8 +24,8 @@ export function ProductionInfoStep({ data, updateData, onNext, onBack }: StepPro
           <FormInput
             label="Director(s)"
             required
-            value={data.director}
-            onChange={(e) => updateData({ director: e.target.value })}
+            value={data.directorName}
+            onChange={(e) => updateData({ directorName: e.target.value })}
             placeholder="e.g. Vince Gilligan"
           />
         </div>
@@ -34,19 +34,9 @@ export function ProductionInfoStep({ data, updateData, onNext, onBack }: StepPro
           <FormInput
             label="Producer(s)"
             required
-            value={data.producer}
-            onChange={(e) => updateData({ producer: e.target.value })}
+            value={data.producerName}
+            onChange={(e) => updateData({ producerName: e.target.value })}
             placeholder="e.g. Mark Johnson, Melissa Bernstein"
-          />
-        </div>
-
-        <div className="sm:col-span-2">
-          <FormInput
-            label="Production Company"
-            required
-            value={data.productionCompany}
-            onChange={(e) => updateData({ productionCompany: e.target.value })}
-            placeholder="e.g. High Bridge Productions"
           />
         </div>
       </div>

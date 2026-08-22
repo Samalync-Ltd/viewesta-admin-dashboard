@@ -14,8 +14,8 @@ export function CastStep({ data, updateData, onNext, onBack }: StepProps) {
   const addCastMember = () => {
     const newCast: CastMember = {
       id: crypto.randomUUID(),
-      actorName: "",
-      characterName: "",
+      name: "",
+      character: "",
       role: "",
     };
     updateData({ cast: [...data.cast, newCast] });
@@ -87,15 +87,15 @@ export function CastStep({ data, updateData, onNext, onBack }: StepProps) {
                 <FormInput
                   label="Actor Name"
                   required
-                  value={member.actorName}
-                  onChange={(e) => updateCastMember(idx, { actorName: e.target.value })}
+                  value={member.name}
+                  onChange={(e) => updateCastMember(idx, { name: e.target.value })}
                   placeholder="e.g. Bryan Cranston"
                 />
                 <FormInput
                   label="Character Name"
                   required
-                  value={member.characterName}
-                  onChange={(e) => updateCastMember(idx, { characterName: e.target.value })}
+                  value={member.character}
+                  onChange={(e) => updateCastMember(idx, { character: e.target.value })}
                   placeholder="e.g. Walter White"
                 />
                 <FormInput

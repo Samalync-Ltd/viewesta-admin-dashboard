@@ -65,7 +65,6 @@ export function NotificationsPage() {
         };
       }
     );
-    toast(pendingNotification.title, "info");
     clearPendingNotification();
   }, [clearPendingNotification, pendingNotification, queryClient]);
 

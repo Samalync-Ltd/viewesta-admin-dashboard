@@ -14,6 +14,7 @@ import {
   refreshFCMToken,
   type AdminNotification,
 } from "../api/notifications";
+import { toast } from "../components/ui/Toast";
 
 interface NotificationContextValue {
   unreadCount: number;
@@ -67,16 +68,28 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     let unsubscribe: (() => void) | undefined;
     void onForegroundMessage((payload) => {
-      setPendingNotification(payloadToNotification(payload));
+      const notif = payloadToNotification(payload);
+      setPendingNotification(notif);
       setUnreadCount((count) => count + 1);
+      toast(notif.title, "info");
+      
+      if ("Notification" in window && Notification.permission === "granted") {
+        try {
+          new Notification(notif.title, { body: notif.body, tag: notif.id });
+        } catch (e) {
+          console.warn("Could not show browser notification", e);
+        }
+      }
     }).then((unsub) => {
       unsubscribe = unsub;
     });
 
     const handleWorkerMessage = (event: MessageEvent) => {
       if (event.data?.type !== "BACKGROUND_FCM") return;
-      setPendingNotification(payloadToNotification(event.data.payload));
+      const notif = payloadToNotification(event.data.payload);
+      setPendingNotification(notif);
       setUnreadCount((count) => count + 1);
+      toast(notif.title, "info");
     };
 
     navigator.serviceWorker?.addEventListener("message", handleWorkerMessage);

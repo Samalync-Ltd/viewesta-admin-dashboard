@@ -7,7 +7,7 @@ import { Pagination } from "../../components/ui/Pagination";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { toast } from "../../components/ui/Toast";
 
-const LIMIT = 10;
+const LIMIT = 100;
 
 export function MoviesPage() {
   const [page, setPage] = useState(1);
@@ -18,7 +18,11 @@ export function MoviesPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["content", "movies", page, search],
     queryFn: () =>
-      contentApi.movies.list({ page, limit: LIMIT, search: search || undefined }),
+      contentApi.movies.list({
+        page,
+        limit: LIMIT,
+        search: search || undefined,
+      }),
   });
 
   const deleteMutation = useMutation({

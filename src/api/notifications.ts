@@ -138,11 +138,14 @@ export async function registerDevice(token: string): Promise<void> {
     localStorage.setItem("viewesta_admin_device_id", device_id);
   }
 
-  await api.post("/notifications/devices/register", {
+  const body = {
     token,
-    platform: "web",
-    device_id: device_id,
-  });
+    deviceType: "web",
+    deviceName: device_id,
+  };
+  console.log("[Notifications][registerDevice] Request body:", JSON.stringify(body));
+
+  await api.post("/notifications/devices/register", body);
   localStorage.setItem(FCM_TOKEN_KEY, token);
 }
 

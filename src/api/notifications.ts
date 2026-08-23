@@ -62,12 +62,31 @@ export const notificationsApi = {
 };
 
 export async function registerNotificationServiceWorker(): Promise<ServiceWorkerRegistration | null> {
-  if (!("serviceWorker" in navigator)) return null;
+  if (!("serviceWorker" in navigator)) {
+    console.warn("[Notifications][SW] serviceWorker API not available in this browser/context.");
+    return null;
+  }
+
+  const swUrl = getServiceWorkerUrl();
+  console.log("[Notifications][SW] Registering service worker:", swUrl.split("?")[0], {
+    origin: location.origin,
+    isSecureContext: window.isSecureContext,
+  });
 
   try {
-    return await navigator.serviceWorker.register(getServiceWorkerUrl());
+    const registration = await navigator.serviceWorker.register(swUrl);
+    console.log("[Notifications][SW] Registration call resolved.", {
+      scope: registration.scope,
+      installing: !!registration.installing,
+      waiting: !!registration.waiting,
+      active: !!registration.active,
+    });
+    return registration;
   } catch (err) {
-    console.warn("[Notifications] Service worker registration failed:", err);
+    console.error("[Notifications][SW] Service worker registration failed. Full error:", err);
+    if (err instanceof Error) {
+      console.error("[Notifications][SW] error.name:", err.name, "error.message:", err.message, "error.stack:", err.stack);
+    }
     return null;
   }
 }
@@ -119,11 +138,14 @@ export async function registerDevice(token: string): Promise<void> {
     localStorage.setItem("viewesta_admin_device_id", device_id);
   }
 
-  await api.post("/notifications/devices/register", {
+  const body = {
     token,
-    platform: "web",
-    device_id: device_id,
-  });
+    deviceType: "web",
+    deviceName: device_id,
+  };
+  console.log("[Notifications][registerDevice] Request body:", JSON.stringify(body));
+
+  await api.post("/notifications/devices/register", body);
   localStorage.setItem(FCM_TOKEN_KEY, token);
 }
 
@@ -169,17 +191,33 @@ export async function registerPushNotifications(): Promise<{
     if (permission !== "granted") return { supported: true, granted: false };
 
     const messaging = await initializeMessaging();
-    if (!messaging) return { supported: false };
+    if (!messaging) {
+      console.warn("[Notifications][FCM] initializeMessaging() returned null — Firebase Messaging not supported/initialized.");
+      return { supported: false };
+    }
 
     const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
-    if (!vapidKey) return { supported: true, granted: true, token: null };
+    if (!vapidKey) {
+      console.warn("[Notifications][FCM] VITE_FIREBASE_VAPID_KEY is missing — skipping getToken().");
+      return { supported: true, granted: true, token: null };
+    }
+    console.log("[Notifications][FCM] Using VAPID key (first 12 chars):", vapidKey.slice(0, 12) + "…", "length:", vapidKey.length);
 
     await registerNotificationServiceWorker();
+    console.log("[Notifications][FCM] Waiting on navigator.serviceWorker.ready…");
     const registration = await navigator.serviceWorker.ready;
+    console.log("[Notifications][FCM] Service worker ready.", {
+      scope: registration.scope,
+      activeState: registration.active?.state,
+      activeScriptURL: registration.active?.scriptURL,
+    });
+
+    console.log("[Notifications][FCM] Calling getToken()…");
     const token = await getToken(messaging, {
       vapidKey,
       serviceWorkerRegistration: registration,
     });
+    console.log("[Notifications][FCM] getToken() resolved:", token ? `${token.slice(0, 16)}…` : token);
 
     if (!token) return { supported: true, granted: true, token: null };
 
@@ -190,7 +228,20 @@ export async function registerPushNotifications(): Promise<{
     await registerDevice(token);
     return { supported: true, granted: true, token };
   } catch (error) {
-    console.warn("[Notifications] Push registration failed:", error);
+    console.error("[Notifications][FCM] Push registration failed. Full error object:", error);
+    if (error instanceof Error) {
+      console.error("[Notifications][FCM] error.name:", error.name);
+      console.error("[Notifications][FCM] error.message:", error.message);
+      console.error("[Notifications][FCM] error.stack:", error.stack);
+      const code = (error as { code?: string }).code;
+      if (code) console.error("[Notifications][FCM] error.code:", code);
+    }
+    console.error("[Notifications][FCM] Context at failure:", {
+      origin: location.origin,
+      isSecureContext: window.isSecureContext,
+      permission: Notification.permission,
+      swControllerScriptURL: navigator.serviceWorker?.controller?.scriptURL,
+    });
     return { supported: true, granted: false, error };
   }
 }

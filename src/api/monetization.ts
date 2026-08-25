@@ -35,12 +35,12 @@ export const monetizationApi = {
     list: () =>
       useMock
         ? mockDelay(200).then(() => mockDb.getPlans())
-        : api.get<SubscriptionPlan[]>("/monetization/plans").then((r) => r.data),
+        : api.get<SubscriptionPlan[]>('/subscriptions/plans').then((r) => r.data),
     create: (body: Partial<SubscriptionPlan>) =>
-      api.post<SubscriptionPlan>("/monetization/plans", body).then((r) => r.data),
+      api.post<SubscriptionPlan>("/subscriptions/plans", body).then((r) => r.data),
     update: (id: string, body: Partial<SubscriptionPlan>) =>
-      api.patch<SubscriptionPlan>(`/monetization/plans/${id}`, body).then((r) => r.data),
-    delete: (id: string) => api.delete(`/monetization/plans/${id}`),
+      api.patch<SubscriptionPlan>(`/subscriptions/plans/${id}`, body).then((r) => r.data),
+    delete: (id: string) => api.delete(`/subscriptions/plans/${id}`),
   },
   subscriptions: {
     list: (params?: ListParams) =>

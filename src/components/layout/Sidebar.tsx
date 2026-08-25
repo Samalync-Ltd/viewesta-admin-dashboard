@@ -10,7 +10,6 @@ import {
   Settings,
   UserCog,
   FolderOpen,
-  Tags,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { hasPermission } from "../../lib/rbac";
@@ -19,7 +18,6 @@ import clsx from "clsx";
 const navItems: { path: string; label: string; icon: typeof LayoutDashboard; permission?: import("../../lib/rbac").Permission }[] = [
   { path: "/", label: "Overview", icon: LayoutDashboard, permission: "overview" },
   { path: "/content/movies", label: "Movies & Shows", icon: Film, permission: "content:movies" },
-  { path: "/content/genres", label: "Genres", icon: Tags, permission: "content:genres" },
   { path: "/content/categories", label: "Categories", icon: FolderOpen, permission: "content:categories" },
   { path: "/filmmakers", label: "Filmmakers", icon: UserCog, permission: "filmmakers" },
   { path: "/users", label: "Users", icon: Users, permission: "users" },

@@ -51,10 +51,17 @@ function getServiceWorkerUrl(): string {
 const FCM_TOKEN_KEY = "viewesta_admin_fcm_token";
 
 export const notificationsApi = {
-  send: (payload: NotificationPayload) =>
-    useMock
-      ? mockDelay(300).then(() => ({ id: `n${Date.now()}`, ...payload, status: "sent" }))
-      : api.post("/notifications/send", payload).then((r) => r.data),
+  send: (payload: NotificationPayload) => {
+    if (useMock) {
+      return mockDelay(300).then(() => ({ id: `n${Date.now()}`, ...payload, status: "sent" }));
+    }
+
+    return Promise.reject(
+      new Error(
+        "The admin broadcast endpoint is not available in the current backend contract. Add a production notification-send route before enabling the New Broadcast action."
+      )
+    );
+  },
   list: (params?: { page?: number; limit?: number }) =>
     useMock
       ? mockDelay(200).then(() => mockDb.getNotifications())

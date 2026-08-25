@@ -21,6 +21,7 @@ export function MoviesPage() {
       contentApi.movies.list({
         page,
         limit: LIMIT,
+        offset: (page - 1) * LIMIT,
         search: search || undefined,
       }),
   });

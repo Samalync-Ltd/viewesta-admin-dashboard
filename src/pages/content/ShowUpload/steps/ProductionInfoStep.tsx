@@ -1,8 +1,22 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import type { StepProps } from "./types";
 import { FormInput } from "../../../../components/ui/forms/FormInput";
+import { FormSelect } from "../../../../components/ui/forms/FormSelect";
+import { filmmakersApi, filmmakerLabel, type FilmmakerOption } from "../../../../api/filmmakers";
 
 export function ProductionInfoStep({ data, updateData, onNext, onBack }: StepProps) {
+  const [filmmakers, setFilmmakers] = useState<FilmmakerOption[]>([]);
+  const [filmmakerError, setFilmmakerError] = useState(false);
+
+  useEffect(() => {
+    // Filmmakers are users with user_type='filmmaker'; there is no
+    // /filmmakers resource, so this reads the admin user listing.
+    filmmakersApi
+      .listOptions()
+      .then(setFilmmakers)
+      .catch(() => setFilmmakerError(true));
+  }, []);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (onNext) onNext();
@@ -15,7 +29,7 @@ export function ProductionInfoStep({ data, updateData, onNext, onBack }: StepPro
           Production Details
         </h3>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Provide information about the crew and production companies behind this series.
+          Provide information about the crew and production companies behind this show.
         </p>
       </div>
 
@@ -38,6 +52,23 @@ export function ProductionInfoStep({ data, updateData, onNext, onBack }: StepPro
             onChange={(e) => updateData({ producerName: e.target.value })}
             placeholder="e.g. Mark Johnson, Melissa Bernstein"
           />
+        </div>
+
+        {/* The backend stores a SINGLE filmmaker per show (series.filmmaker_id
+            is one nullable uuid), so this is a single-select, not a multi. */}
+        <div className="sm:col-span-2">
+          <FormSelect
+            label="Filmmaker"
+            value={data.filmmakerId}
+            onChange={(e) => updateData({ filmmakerId: e.target.value })}
+            options={[
+              { label: filmmakerError ? "Could not load filmmakers" : "Unassigned", value: "" },
+              ...filmmakers.map((f) => ({ label: filmmakerLabel(f), value: f.id })),
+            ]}
+          />
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Attributes the show to a filmmaker account for revenue splits and payouts.
+          </p>
         </div>
       </div>
 

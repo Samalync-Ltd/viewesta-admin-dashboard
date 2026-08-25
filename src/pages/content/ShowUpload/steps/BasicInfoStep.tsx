@@ -4,11 +4,14 @@ import { FormInput } from "../../../../components/ui/forms/FormInput";
 import { FormTextarea } from "../../../../components/ui/forms/FormTextarea";
 import { FormSelect } from "../../../../components/ui/forms/FormSelect";
 import { contentApi } from "../../../../api/content";
+import { AGE_RATINGS } from "../../../../lib/contentOptions";
 
 export function BasicInfoStep({ data, updateData, onNext }: StepProps) {
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
+    // Real category UUIDs — the backend validates category_id as a UUID and
+    // then looks it up, so mock/placeholder ids fail with a 400.
     contentApi.categories.list().then(setCategories).catch(console.error);
   }, []);
 
@@ -22,7 +25,7 @@ export function BasicInfoStep({ data, updateData, onNext }: StepProps) {
       <div className="grid gap-6 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <FormInput
-            label="Series Title"
+            label="Show Title"
             required
             value={data.title}
             onChange={(e) => updateData({ title: e.target.value })}
@@ -37,7 +40,7 @@ export function BasicInfoStep({ data, updateData, onNext }: StepProps) {
             rows={4}
             value={data.description}
             onChange={(e) => updateData({ description: e.target.value })}
-            placeholder="A brief summary of the series..."
+            placeholder="A brief summary of the show..."
           />
         </div>
 
@@ -52,12 +55,15 @@ export function BasicInfoStep({ data, updateData, onNext }: StepProps) {
           ]}
         />
 
-        <FormInput
+        <FormSelect
           label="Age Rating"
           required
           value={data.ageRating}
           onChange={(e) => updateData({ ageRating: e.target.value })}
-          placeholder="e.g. TV-MA, 18+"
+          options={[
+            { label: "Select Age Rating", value: "" },
+            ...AGE_RATINGS.map((r) => ({ label: r, value: r })),
+          ]}
         />
 
         <FormInput

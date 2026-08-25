@@ -1,6 +1,4 @@
 import { api } from "./client";
-import { useMock } from "../config/useMock";
-import { mockDb, mockDelay } from "../data/mockDb";
 import type { NotificationPayload } from "../types/models";
 import { getToken, onMessage } from "firebase/messaging";
 import { initializeMessaging } from "../firebase/config";
@@ -51,21 +49,17 @@ function getServiceWorkerUrl(): string {
 const FCM_TOKEN_KEY = "viewesta_admin_fcm_token";
 
 export const notificationsApi = {
-  send: (payload: NotificationPayload) => {
-    if (useMock) {
-      return mockDelay(300).then(() => ({ id: `n${Date.now()}`, ...payload, status: "sent" }));
-    }
-
-    return Promise.reject(
+  /**
+   * There is still no admin broadcast route in the backend contract, so this
+   * always rejects. It used to resolve with a fake success under useMock, which
+   * made the UI report "Notification sent" when nothing had been sent.
+   */
+  send: (payload: NotificationPayload) =>
+    Promise.reject(
       new Error(
-        "The admin broadcast endpoint is not available in the current backend contract. Add a production notification-send route before enabling the New Broadcast action."
+        `Cannot send "${payload.title}": there is no admin broadcast endpoint in the current backend contract. Add a production notification-send route before enabling the New Broadcast action.`
       )
-    );
-  },
-  list: (params?: { page?: number; limit?: number }) =>
-    useMock
-      ? mockDelay(200).then(() => mockDb.getNotifications())
-      : api.get<{ data: ScheduledNotification[]; total: number }>("/notifications", { params }).then((r) => r.data),
+    ),
 };
 
 export async function registerNotificationServiceWorker(): Promise<ServiceWorkerRegistration | null> {
@@ -98,47 +92,69 @@ export async function registerNotificationServiceWorker(): Promise<ServiceWorker
   }
 }
 
-export async function getNotifications(limit = 20, offset = 0): Promise<NotificationListResponse> {
-  if (useMock) {
-    const list = await mockDelay(200).then(() => mockDb.getNotifications());
-    const notifications = list.data.map((item) => ({
-      ...item,
-      notification_type: "system_announcement",
-      is_read: false,
-      created_at: item.scheduledAt ?? item.sentAt,
-    }));
-    return { notifications, unreadCount: notifications.length };
-  }
+/**
+ * IMPORTANT — response key casing.
+ *
+ * `responseFormatter` is mounted globally (index.js:169) and rewrites EVERY
+ * response key to snake_case before it leaves the server. The controller
+ * returns `res.json({ notifications, unreadCount })`, so the wire payload is
+ * actually `{ notifications, unread_count }` — there is no `unreadCount` key.
+ *
+ * Reading `data.unreadCount` therefore always yielded undefined -> 0, which is
+ * why the badge never reflected the real unread total. Both spellings are
+ * accepted below so this keeps working if the formatter is ever removed.
+ */
+function readUnreadCount(data: any): number {
+  const raw = data?.unread_count ?? data?.unreadCount ?? data?.count;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
 
-  const response = await api.get("/notifications", { params: { limit, offset } });
-  const data = resolveData<Partial<NotificationListResponse>>(response);
+/**
+ * GET /notifications/unread — the authoritative unread list and count.
+ * Controller returns `{ notifications, count }` (both keys already snake-safe).
+ */
+export async function getUnreadNotifications(): Promise<NotificationListResponse> {
+  const response = await api.get("/notifications/unread");
+  const data = resolveData<any>(response);
+  const notifications = Array.isArray(data?.notifications) ? data.notifications : [];
   return {
-    notifications: Array.isArray(data.notifications) ? data.notifications : [],
-    unreadCount: typeof data.unreadCount === "number" ? data.unreadCount : 0,
+    notifications,
+    // `count` is authoritative; fall back to the array length.
+    unreadCount: readUnreadCount(data) || notifications.length,
+  };
+}
+
+/** Unread count only — used by the badge. */
+export async function getUnreadCount(): Promise<number> {
+  const response = await api.get("/notifications/unread");
+  const data = resolveData<any>(response);
+  const notifications = Array.isArray(data?.notifications) ? data.notifications : [];
+  return readUnreadCount(data) || notifications.length;
+}
+
+export async function getNotifications(limit = 20, offset = 0): Promise<NotificationListResponse> {
+  const response = await api.get("/notifications", { params: { limit, offset } });
+  const data = resolveData<any>(response);
+  return {
+    notifications: Array.isArray(data?.notifications) ? data.notifications : [],
+    unreadCount: readUnreadCount(data),
   };
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-  if (useMock) return;
   await api.put(`/notifications/${id}/read`);
 }
 
 export async function markAllRead(): Promise<void> {
-  if (useMock) return;
   await api.put("/notifications/read-all");
 }
 
 export async function deleteNotification(id: string): Promise<void> {
-  if (useMock) return;
   await api.delete(`/notifications/${id}`);
 }
 
 export async function registerDevice(token: string): Promise<void> {
-  if (useMock) {
-    localStorage.setItem(FCM_TOKEN_KEY, token);
-    return;
-  }
-
   let device_id = localStorage.getItem("viewesta_admin_device_id");
   if (!device_id) {
     device_id = "web-" + Math.random().toString(36).substring(2, 15);
@@ -159,16 +175,13 @@ export async function registerDevice(token: string): Promise<void> {
 export async function unregisterDevice(token: string | null): Promise<void> {
   if (!token) return;
   try {
-    if (!useMock) {
-      await api.post("/notifications/devices/unregister", { token });
-    }
+    await api.post("/notifications/devices/unregister", { token });
   } finally {
     localStorage.removeItem(FCM_TOKEN_KEY);
   }
 }
 
 export async function getRegisteredDevices(): Promise<unknown[]> {
-  if (useMock) return [];
   const response = await api.get("/notifications/devices");
   const data = resolveData<unknown[] | { devices?: unknown[] }>(response);
   if (Array.isArray(data)) return data;

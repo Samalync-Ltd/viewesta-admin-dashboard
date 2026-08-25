@@ -1,4 +1,5 @@
-export type ShowStatus = "draft" | "published" | "archived";
+/** @deprecated Use `BackendContentStatus` from `src/lib/contentStatus.ts`. */
+export type ShowStatus = "draft" | "pending" | "approved" | "rejected";
 
 export interface CastMember {
   id: string; // for internal UI tracking
@@ -37,10 +38,14 @@ export interface ShowFormData {
   // Production Information
   directorName: string;
   producerName: string;
+  /** users.id of a user with user_type='filmmaker'. Maps to `filmmaker_id`. */
+  filmmakerId: string;
 
-  // Media
+  // Media — all sent as multipart files; attachShowMediaUploads writes the
+  // resulting *_url columns server-side.
   poster?: File | null;
   backdrop?: File | null;
+  thumbnail?: File | null;
   trailer?: File | null;
   durationMinutes: string;
 
@@ -49,9 +54,18 @@ export interface ShowFormData {
 
   // Seasons
   seasons: Season[];
-
-  // Access Settings
-  accessType: string;
-  price?: number;
-  isFeatured: boolean;
 }
+
+/*
+ * Removed, with reasons (verified against schema.sql + Series model + Joi):
+ *
+ *   accessType  -> `series.access_type` is a real column, but it is absent from
+ *                  showValidation.create/update, from Series.create()'s
+ *                  destructure and from Series.update()'s whitelist. No endpoint
+ *                  can write it; every show takes the DB default.
+ *   price       -> there is no show-level price. `content_pricing` keys on
+ *                  movie_id or episode_id only — there is no series_id column,
+ *                  so show pricing is per-episode, not per-show.
+ *   isFeatured  -> the `series` table has NO is_featured column at all. (The
+ *                  `movies` table does; series does not.)
+ */

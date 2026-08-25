@@ -16,7 +16,7 @@ export function MediaStep({ data, updateData, onNext, onBack }: StepProps) {
           Media Uploads
         </h3>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Upload posters, trailers, and promotional images for the series.
+          Upload posters, trailers, and promotional images for the show.
         </p>
       </div>
 
@@ -38,6 +38,15 @@ export function MediaStep({ data, updateData, onNext, onBack }: StepProps) {
             accept="image/*"
             value={data.backdrop ? [data.backdrop] : []}
             onChange={(files) => updateData({ backdrop: files[0] || null })}
+          />
+        </div>
+
+        <div>
+          <MediaUpload
+            label="Thumbnail Image"
+            accept="image/*"
+            value={data.thumbnail ? [data.thumbnail] : []}
+            onChange={(files) => updateData({ thumbnail: files[0] || null })}
           />
         </div>
 

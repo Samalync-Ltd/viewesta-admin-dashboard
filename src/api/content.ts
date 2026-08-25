@@ -1,157 +1,240 @@
 import { api } from "./client";
-import { useMock } from "../config/useMock";
-import { mockDb, mockDelay } from "../data/mockDb";
 import type { PaginatedResponse, ListParams } from "../types/api";
 import type { Movie, Category } from "../types/models";
 
-/** Unwrap the common backend envelopes:
- *  { data: { movie: {...} } }
- *  { data: { data: {...} } }
- *  { data: {...} }
- *  { movie: {...} }
- *  raw object (already the movie)
+/**
+ * ── Backend contract notes (verified against viewesta-backend @ HEAD) ────────
+ *
+ * The metadata endpoints for movies and shows REJECT URL-shaped media fields:
+ *
+ *   movieRoutes.js  POST/PUT /movies      rejectLegacyMediaFields([
+ *                                           'poster_url','backdrop_url',
+ *                                           'trailer_url','trailer_video'])
+ *   seriesRouter.js POST/PUT /series|shows rejectLegacyMediaFields([
+ *                                           'poster_url','backdrop_url',
+ *                                           'thumbnail_url','trailer_url',
+ *                                           'trailer_video'])
+ *
+ * `rejectLegacyMediaFields` fires on `!== undefined`, so even an empty string
+ * is a hard 400. Media MUST be sent as multipart/form-data files, which
+ * attachMovieMediaUploads / attachShowMediaUploads then push to S3 and turn
+ * into *_url values server-side. Omitting a file leaves the stored URL intact,
+ * which is exactly the "leave empty to keep" behaviour the edit form wants.
+ *
+ * Everything else goes through Joi with `stripUnknown: true`, so unknown fields
+ * are silently dropped — which is why sending fields the backend has never
+ * heard of (price, included_in_subscription, video_quality, genres, …) used to
+ * look like a successful save that changed nothing.
  */
+
+/** One row of `movie_pricing`. */
+export interface MoviePricingEntry {
+  id?: string;
+  movie_id?: string;
+  quality: string;
+  price: string | number;
+  is_free: boolean;
+}
+
+/** Multipart field names the backend's media middleware looks for. */
+export interface ContentMediaFiles {
+  poster?: File | null;
+  backdrop?: File | null;
+  trailer?: File | null;
+  thumbnail?: File | null;
+}
+
+/**
+ * Build a multipart body. Scalars are stringified, arrays/objects are JSON
+ * encoded (the backend JSON-parses `cast` and `trailer_video`), and
+ * undefined/null/"" are omitted so we never blank a stored value by accident.
+ */
+export function buildContentFormData(
+  fields: Record<string, unknown>,
+  files: ContentMediaFiles = {}
+): FormData {
+  const fd = new FormData();
+
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined || value === null || value === "") continue;
+    if (Array.isArray(value) || typeof value === "object") {
+      fd.append(key, JSON.stringify(value));
+    } else {
+      fd.append(key, String(value));
+    }
+  }
+
+  for (const [key, file] of Object.entries(files)) {
+    if (file) fd.append(key, file);
+  }
+
+  return fd;
+}
+
+/** Unwrap `{ success, data: { movie } }` and the older shapes. */
 function unwrapMovie(raw: any): any {
-  return (
-    raw?.data?.movie ??
-    raw?.data?.data ??
-    raw?.data ??
-    raw?.movie ??
-    raw
-  );
+  return raw?.data?.movie ?? raw?.data?.data ?? raw?.data ?? raw?.movie ?? raw;
 }
 
-function unwrapSeries(raw: any): any {
-  return raw?.data?.series ?? raw?.data?.show ?? raw?.data ?? raw;
+/** Unwrap `{ success, data: { show } }`. */
+function unwrapShow(raw: any): any {
+  return raw?.data?.show ?? raw?.data?.series ?? raw?.data ?? raw?.show ?? raw;
 }
 
-function extractMovieListPayload(payload: any): any[] {
-  if (!payload) return [];
+/**
+ * Normalise a list response into PaginatedResponse.
+ * Backend shape: `{ success, data: { movies|shows, pagination:{total,limit,offset,pages} } }`
+ */
+function toPaginated<T>(payload: any, key: "movies" | "shows", page: number, limit: number): PaginatedResponse<T> {
+  const body = payload?.data ?? payload;
+  const items: T[] = Array.isArray(body?.[key])
+    ? body[key]
+    : Array.isArray(body?.items)
+      ? body.items
+      : Array.isArray(body?.data)
+        ? body.data
+        : Array.isArray(body)
+          ? body
+          : [];
 
-  const responseData = payload?.data ?? payload;
-  if (Array.isArray(responseData)) return responseData;
+  const pagination = body?.pagination ?? {};
+  const total = Number(pagination.total ?? items.length) || 0;
+  const effectiveLimit = Number(pagination.limit ?? limit) || limit;
 
-  if (Array.isArray(responseData?.movies)) return responseData.movies;
-  if (Array.isArray(responseData?.items)) return responseData.items;
-  if (Array.isArray(responseData?.data)) return responseData.data;
-  if (Array.isArray(responseData?.data?.movies)) return responseData.data.movies;
-  if (Array.isArray(responseData?.data?.items)) return responseData.data.items;
+  return {
+    data: items,
+    total,
+    page,
+    limit: effectiveLimit,
+    totalPages: Number(pagination.pages) || Math.max(1, Math.ceil(total / effectiveLimit)),
+  };
+}
 
-  return [];
+/**
+ * Translate ListParams into the backend's pagination contract.
+ * Defaults to newest-first, which is what both list screens want.
+ */
+function toQuery(params?: ListParams) {
+  const raw = { ...(params ?? {}) } as Record<string, unknown>;
+  const limit = Number(raw.limit ?? 20) || 20;
+  const page = Number(raw.page ?? 1) || 1;
+  const offset = Number(raw.offset ?? (page - 1) * limit) || 0;
+
+  delete raw.page;
+  delete raw.offset;
+  delete raw.limit;
+
+  const query: Record<string, string | number> = {
+    limit,
+    offset,
+    sort_by: (raw.sort_by as string) ?? "created_at",
+    order: (raw.order as string)?.toUpperCase() === "ASC" ? "ASC" : "DESC",
+  };
+  delete raw.sort_by;
+  delete raw.order;
+  delete raw.sort;
+
+  for (const [key, value] of Object.entries(raw)) {
+    if (value === undefined || value === null || value === "") continue;
+    query[key] = value as string | number;
+  }
+
+  return { query, page, limit };
 }
 
 export const contentApi = {
   movies: {
+    /**
+     * GET /movies. Omitting `status` returns EVERY status for an admin token
+     * (movieController.getMovies only forces 'approved' for non-admins), so
+     * drafts stay visible instead of being filtered out client-side.
+     */
     list: async (params?: ListParams) => {
-      const rawParams = { ...(params ?? {}) } as Record<string, string | number | undefined>;
-      const limit = Number(rawParams.limit ?? 100) || 100;
-      const page = Number(rawParams.page ?? 1) || 1;
-      const offset = Number(rawParams.offset ?? (page - 1) * limit) || 0;
-
-      delete rawParams.page;
-      delete rawParams.offset;
-
-      const queryParams = {
-        ...rawParams,
-        limit,
-        offset,
-      } as Record<string, string | number>;
-
-      if (typeof rawParams.status !== "undefined") {
-        const { data } = await api.get<PaginatedResponse<Movie>>("/movies", { params: queryParams });
-        return data;
-      }
-
-      const [approvedResponse, pendingResponse] = await Promise.all([
-        api.get<PaginatedResponse<Movie>>("/movies", { params: { ...queryParams, status: "approved" } }).catch(() => ({ data: {} })),
-        api.get<PaginatedResponse<Movie>>("/movies", { params: { ...queryParams, status: "pending" } }).catch(() => ({ data: {} })),
-      ]);
-
-      const merged = [
-        ...extractMovieListPayload(approvedResponse.data),
-        ...extractMovieListPayload(pendingResponse.data),
-      ];
-
-      const uniqueMovies = Array.from(new Map(merged.map((item) => [item.id, item])).values());
-
-      return {
-        data: uniqueMovies,
-        total: uniqueMovies.length,
-        page,
-        limit,
-        totalPages: Math.max(1, Math.ceil(uniqueMovies.length / limit)),
-      } satisfies PaginatedResponse<Movie>;
+      const { query, page, limit } = toQuery({ limit: 20, ...(params ?? {}) });
+      const { data } = await api.get("/movies", { params: query });
+      return toPaginated<Movie>(data, "movies", page, limit);
     },
-    get: (id: string) =>
-      api.get(`/movies/${id}`).then((r) => unwrapMovie(r.data)),
-    create: (body: Partial<Movie> | FormData) =>
-      api.post("/movies", body).then((r) => r.data),
-    update: (id: string, body: Partial<Movie> | FormData) =>
-      api.put(`/movies/${id}`, body).then((r) => r.data),
-    delete: (id: string): Promise<void> =>
-      api.delete(`/movies/${id}`).then(() => undefined),
-    addVideoFile: (id: string, payload: FormData, onUploadProgress?: (progressEvent: any) => void) =>
+    get: (id: string) => api.get(`/movies/${id}`).then((r) => unwrapMovie(r.data)),
+    create: (fields: Record<string, unknown>, files?: ContentMediaFiles) =>
+      api.post("/movies", buildContentFormData(fields, files)).then((r) => unwrapMovie(r.data)),
+    update: (id: string, fields: Record<string, unknown>, files?: ContentMediaFiles) =>
+      api.put(`/movies/${id}`, buildContentFormData(fields, files)).then((r) => unwrapMovie(r.data)),
+    delete: (id: string): Promise<void> => api.delete(`/movies/${id}`).then(() => undefined),
+    /** POST /movies/:id/video-files — multipart, field name must be `video`. */
+    addVideoFile: (id: string, payload: FormData, onUploadProgress?: (e: any) => void) =>
       api.post(`/movies/${id}/video-files`, payload, { onUploadProgress }).then((r) => r.data),
   },
-  series: {
-    create: (body: any) =>
-      api.post("/series", body).then((r) => unwrapSeries(r.data)),
-    update: (id: string, body: any) =>
-      api.put(`/series/${id}`, body).then((r) => unwrapSeries(r.data)),
-    addEpisodeVideo: (
-      seriesId: string,
-      seasonNumber: number,
-      episodeNumber: number,
-      payload: FormData,
-      onUploadProgress?: (progressEvent: any) => void
-    ) =>
-      api
-        .post(
-          `/series/${seriesId}/seasons/${seasonNumber}/episodes/${episodeNumber}/video`,
-          payload,
-          { onUploadProgress }
-        )
-        .then((r) => r.data),
+
+  /**
+   * Shows (the backend still names the router "series"; `/shows` and `/series`
+   * are the same router, so we use the `/shows` spelling throughout).
+   */
+  shows: {
+    list: async (params?: ListParams) => {
+      const { query, page, limit } = toQuery({ limit: 20, ...(params ?? {}) });
+      const { data } = await api.get("/shows", { params: query });
+      return toPaginated<any>(data, "shows", page, limit);
+    },
+    get: (id: string) => api.get(`/shows/${id}`).then((r) => unwrapShow(r.data)),
+    create: (fields: Record<string, unknown>, files?: ContentMediaFiles) =>
+      api.post("/shows", buildContentFormData(fields, files)).then((r) => unwrapShow(r.data)),
+    update: (id: string, fields: Record<string, unknown>, files?: ContentMediaFiles) =>
+      api.put(`/shows/${id}`, buildContentFormData(fields, files)).then((r) => unwrapShow(r.data)),
+    delete: (id: string): Promise<void> => api.delete(`/shows/${id}`).then(() => undefined),
+
+    /** POST /shows/:showId/seasons */
+    createSeason: (showId: string, body: { season_number: number; title?: string; description?: string; release_year?: number }) =>
+      api.post(`/shows/${showId}/seasons`, body).then((r) => r.data?.data?.season ?? r.data?.data ?? r.data),
+
+    /** POST /seasons/:seasonId/episodes */
+    createEpisode: (
+      seasonId: string,
+      body: { episode_number: number; title: string; description?: string; duration_minutes?: number }
+    ) => api.post(`/seasons/${seasonId}/episodes`, body).then((r) => r.data?.data?.episode ?? r.data?.data ?? r.data),
+
+    /** POST /episodes/:episodeId/video-files — multipart, field name must be `video`. */
+    addEpisodeVideo: (episodeId: string, payload: FormData, onUploadProgress?: (e: any) => void) =>
+      api.post(`/episodes/${episodeId}/video-files`, payload, { onUploadProgress }).then((r) => r.data),
   },
-  genres: {
-    list: () =>
-      Promise.reject(new Error("Genres are no longer part of the current backend contract and have been disabled in the admin dashboard.")),
-    create: () =>
-      Promise.reject(new Error("Genres are no longer part of the current backend contract and have been disabled in the admin dashboard.")),
-    update: () =>
-      Promise.reject(new Error("Genres are no longer part of the current backend contract and have been disabled in the admin dashboard.")),
-    delete: () =>
-      Promise.reject(new Error("Genres are no longer part of the current backend contract and have been disabled in the admin dashboard.")),
+
+  /**
+   * TVOD pricing lives in its own table (`movie_pricing`), keyed by
+   * (movie_id, quality) — it is NOT a column on `movies`, so it can never be
+   * saved through the movie update endpoint.
+   *
+   *   GET    /movies/:movieId/pricing            -> { movie_id, pricing: [...] }
+   *   POST   /movies/:movieId/pricing            -> upsert one quality
+   *   DELETE /movies/:movieId/pricing/:quality   -> drop one quality
+   *
+   * POST maps to `MoviePricing.setPricing`, which is
+   * `INSERT ... ON CONFLICT (movie_id, quality) DO UPDATE`, so it doubles as
+   * the update path — no need to branch on whether a row already exists.
+   */
+  pricing: {
+    list: (movieId: string): Promise<MoviePricingEntry[]> =>
+      api.get(`/movies/${movieId}/pricing`).then((r) => {
+        const body = (r.data as any)?.data ?? r.data;
+        return Array.isArray(body?.pricing) ? body.pricing : [];
+      }),
+    /** Upsert the price for one quality tier. */
+    set: (movieId: string, body: { quality: string; price?: number; is_free?: boolean }) =>
+      api.post(`/movies/${movieId}/pricing`, body).then((r) => r.data),
+    remove: (movieId: string, quality: string): Promise<void> =>
+      api.delete(`/movies/${movieId}/pricing/${quality}`).then(() => undefined),
   },
+
   categories: {
-    list: () =>
-      useMock
-        ? mockDelay(150).then(() => mockDb.getCategories())
-        : api.get<Category[]>("/categories").then((r) => r.data),
+    /** GET /categories -> `{ success, data: { categories: [...] } }` */
+    list: (): Promise<Category[]> =>
+      api.get("/categories").then((r) => {
+        const body = (r.data as any)?.data ?? r.data;
+        const list = Array.isArray(body?.categories) ? body.categories : Array.isArray(body) ? body : [];
+        return list as Category[];
+      }),
     create: (body: Partial<Category>) =>
-      useMock
-        ? mockDelay(200).then(() => {
-            const id = `c${Date.now()}`;
-            const cat: Category = {
-              id,
-              name: body.name ?? "",
-              slug: (body.name ?? "").toLowerCase().replace(/\s+/g, "-"),
-              featured: body.featured ?? false,
-              movieIds: body.movieIds ?? [],
-            };
-            mockDb.categories.push(cat);
-            return cat;
-          })
-        : api.post<Category>("/categories", body).then((r) => r.data),
+      api.post<Category>("/categories", body).then((r) => r.data),
     update: (id: string, body: Partial<Category>) =>
-      useMock
-        ? mockDelay(150).then(() => mockDb.updateCategory(id, body) ?? Promise.reject(new Error("Not found")))
-        : api.patch<Category>(`/categories/${id}`, body).then((r) => r.data),
-    delete: (id: string): Promise<void> =>
-      useMock
-        ? mockDelay(150).then(() => {
-            mockDb.categories = mockDb.categories.filter((c) => c.id !== id);
-          })
-        : api.delete(`/categories/${id}`).then(() => undefined),
+      api.put<Category>(`/categories/${id}`, body).then((r) => r.data),
+    delete: (id: string): Promise<void> => api.delete(`/categories/${id}`).then(() => undefined),
   },
 };

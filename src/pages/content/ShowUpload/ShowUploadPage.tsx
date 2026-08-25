@@ -5,10 +5,13 @@ import { BasicInfoStep } from "./steps/BasicInfoStep";
 import { ProductionInfoStep } from "./steps/ProductionInfoStep";
 import { MediaStep } from "./steps/MediaStep";
 import { CastStep } from "./steps/CastStep";
+import { SeasonsStep } from "./steps/SeasonsStep";
 import { ReviewStep } from "./steps/ReviewStep";
 import { toast } from "../../../components/ui/Toast";
 import { contentApi } from "../../../api/content";
-import { uploadApi } from "../../../api/upload";
+import { AGE_RATINGS } from "../../../lib/contentOptions";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const initialData: ShowFormData = {
   title: "",
@@ -18,12 +21,10 @@ const initialData: ShowFormData = {
   releaseYear: "",
   directorName: "",
   producerName: "",
+  filmmakerId: "",
   durationMinutes: "",
   cast: [],
   seasons: [],
-  accessType: "Free",
-  price: undefined,
-  isFeatured: false,
 };
 
 const STEPS = [
@@ -31,6 +32,7 @@ const STEPS = [
   "Production",
   "Media",
   "Cast",
+  "Seasons",
   "Review",
 ];
 
@@ -57,85 +59,129 @@ export function ShowUploadPage() {
   };
 
   const handleSubmit = async () => {
+    // ── Client-side guards for the backend's Joi contract ────────────────────
+    // showValidation.create: title 2..255 required, cast required + min(1) with
+    // every member carrying name AND role, category_id must be a UUID,
+    // age_rating must be one of G/PG/PG-13/R/16+/18+.
+    const cast = formData.cast
+      .filter((c) => c.name.trim() && c.role.trim())
+      .map((c) => ({
+        name: c.name.trim(),
+        role: c.role.trim(),
+        character: c.character.trim(),
+      }));
+
+    if (formData.title.trim().length < 2) {
+      toast("Title must be at least 2 characters.", "error");
+      return;
+    }
+    if (cast.length === 0) {
+      toast("At least one cast member with a name and a role is required.", "error");
+      return;
+    }
+    if (!formData.poster || !formData.backdrop) {
+      toast("Poster and backdrop images are required.", "error");
+      return;
+    }
+
     setIsSubmitting(true);
     setUploadProgress(0);
-    setUploadStatus("Uploading poster...");
+    setUploadStatus("Creating show...");
 
     try {
-      // ── Step 1: Upload images via S3 presigned URLs ────────────────────────
-      let posterUrl = "";
-      let backdropUrl = "";
-      let trailerUrl = "";
-
-      if (formData.poster) {
-        const res = await uploadApi.uploadFileFlow(formData.poster, "poster", (p) =>
-          setUploadProgress(p * 0.1)
-        );
-        posterUrl = res.fileUrl;
-      }
-
-      setUploadStatus("Uploading backdrop...");
-      if (formData.backdrop) {
-        const res = await uploadApi.uploadFileFlow(formData.backdrop, "backdrop", (p) =>
-          setUploadProgress(10 + p * 0.1)
-        );
-        backdropUrl = res.fileUrl;
-      }
-
-      setUploadStatus("Uploading trailer...");
-      if (formData.trailer) {
-        const res = await uploadApi.uploadFileFlow(formData.trailer, "trailer", (p) =>
-          setUploadProgress(20 + p * 0.1)
-        );
-        trailerUrl = res.fileUrl;
-      }
-
-      setUploadProgress(30);
-      setUploadStatus("Creating series...");
-
-      // ── Step 2: POST series metadata ───────────────────────────────────────
-      const seriesPayload = {
+      // ── Create the show ────────────────────────────────────────────────────
+      // POST /shows mounts rejectLegacyMediaFields([...'poster_url',
+      // 'backdrop_url','thumbnail_url','trailer_url','trailer_video']), which
+      // 400s on any *_url key — even an empty string. Media therefore goes as
+      // multipart files, and attachShowMediaUploads writes the URLs server-side.
+      const fields: Record<string, unknown> = {
         content_type: "series",
-        title: formData.title,
-        description: formData.description,
-        category_id: formData.categoryId,
-        age_rating: formData.ageRating,
-        release_year: formData.releaseYear ? parseInt(formData.releaseYear.split('-')[0]) : new Date().getFullYear(),
-        director_name: formData.directorName,
-        producer_name: formData.producerName,
-        poster_url: posterUrl,
-        backdrop_url: backdropUrl,
-        trailer_url: trailerUrl,
-        duration_minutes: formData.durationMinutes ? parseInt(formData.durationMinutes) : 45,
-        cast: formData.cast.map((c) => ({
-          name: c.name,
-          character: c.character,
-          role: c.role,
-        })),
+        title: formData.title.trim(),
+        cast,
       };
 
-      const seriesResult: any = await contentApi.series.create(seriesPayload);
-      const seriesId =
-        seriesResult?.id ?? seriesResult?.series?.id ?? seriesResult?.data?.id;
+      if (formData.description.trim()) fields.description = formData.description.trim();
+      if (formData.directorName.trim()) fields.director_name = formData.directorName.trim();
+      if (formData.producerName.trim()) fields.producer_name = formData.producerName.trim();
+      if (AGE_RATINGS.includes(formData.ageRating as any)) fields.age_rating = formData.ageRating;
+      if (UUID_RE.test(formData.categoryId)) fields.category_id = formData.categoryId;
+      // showValidation.create accepts filmmaker_id (movieValidation.create does not).
+      if (UUID_RE.test(formData.filmmakerId)) fields.filmmaker_id = formData.filmmakerId;
 
-      if (!seriesId) {
-        throw new Error("Series created but no ID returned from server.");
+      const releaseYear = parseInt(String(formData.releaseYear).split("-")[0], 10);
+      if (Number.isInteger(releaseYear) && releaseYear >= 1888 && releaseYear <= 2100) {
+        fields.release_year = releaseYear;
+      }
+
+      const durationMinutes = parseInt(formData.durationMinutes, 10);
+      if (Number.isInteger(durationMinutes) && durationMinutes > 0) {
+        fields.duration_minutes = durationMinutes;
+      }
+
+      const show = await contentApi.shows.create(fields, {
+        poster: formData.poster,
+        backdrop: formData.backdrop,
+        thumbnail: formData.thumbnail,
+        trailer: formData.trailer,
+      });
+
+      const showId = show?.id;
+      if (!showId) throw new Error("Show created but no ID returned from server.");
+
+      setUploadProgress(40);
+
+      // ── Seasons and episodes ───────────────────────────────────────────────
+      // POST /shows/:showId/seasons -> POST /seasons/:seasonId/episodes
+      // -> POST /episodes/:episodeId/video-files (multipart, field name `video`).
+      const seasons = formData.seasons ?? [];
+      const totalEpisodes = seasons.reduce((n, s) => n + s.episodes.length, 0);
+      let doneEpisodes = 0;
+
+      for (const season of seasons) {
+        setUploadStatus(`Creating season ${season.seasonNumber}...`);
+        const createdSeason = await contentApi.shows.createSeason(showId, {
+          season_number: season.seasonNumber,
+          title: season.title || undefined,
+          description: season.description || undefined,
+        });
+        const seasonId = createdSeason?.id;
+        if (!seasonId) throw new Error(`Season ${season.seasonNumber} created but no ID returned.`);
+
+        for (const episode of season.episodes) {
+          setUploadStatus(
+            `Season ${season.seasonNumber} · episode ${episode.episodeNumber}...`
+          );
+          const createdEpisode = await contentApi.shows.createEpisode(seasonId, {
+            episode_number: episode.episodeNumber,
+            title: episode.title,
+            description: episode.description || undefined,
+            duration_minutes: episode.duration > 0 ? episode.duration : undefined,
+          });
+          const episodeId = createdEpisode?.id;
+
+          if (episodeId && episode.videoFile) {
+            const videoData = new FormData();
+            videoData.append("video", episode.videoFile);
+            videoData.append("quality", "1080p");
+            if (episode.duration > 0) {
+              videoData.append("duration_seconds", String(episode.duration * 60));
+            }
+            await contentApi.shows.addEpisodeVideo(episodeId, videoData);
+          }
+
+          doneEpisodes += 1;
+          if (totalEpisodes > 0) {
+            setUploadProgress(40 + Math.round((doneEpisodes / totalEpisodes) * 55));
+          }
+        }
       }
 
       setUploadProgress(100);
       setUploadStatus("Done!");
-      toast("Series uploaded successfully!", "success");
-
-      setTimeout(() => {
-        navigate("/content/shows");
-      }, 1500);
+      toast("Show uploaded successfully!", "success");
+      navigate("/content/shows");
     } catch (err: any) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err.message ||
-        "Upload failed";
-      toast(msg, "error");
+      toast(extractError(err, "Upload failed"), "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -145,10 +191,10 @@ export function ShowUploadPage() {
     <div className="mx-auto max-w-4xl space-y-6 pb-20">
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-          Upload Series
+          Upload Show
         </h1>
         <p className="mt-1 text-slate-600 dark:text-slate-400">
-          Complete the steps below to upload a new series.
+          Complete the steps below to upload a new show.
         </p>
       </div>
 
@@ -237,6 +283,14 @@ export function ShowUploadPage() {
           />
         )}
         {currentStep === 4 && (
+          <SeasonsStep
+            data={formData}
+            updateData={(d) => setFormData({ ...formData, ...d })}
+            onNext={handleNext}
+            onBack={handleBack}
+          />
+        )}
+        {currentStep === 5 && (
           <ReviewStep
             data={formData}
             onBack={handleBack}
@@ -246,5 +300,21 @@ export function ShowUploadPage() {
         )}
       </div>
     </div>
+  );
+}
+
+/** Surface the backend's Joi field errors instead of a generic "Upload failed". */
+function extractError(err: any, fallback: string): string {
+  const data = err?.response?.data;
+  const details = data?.error?.details;
+  if (Array.isArray(details) && details.length > 0) {
+    return details.map((d: any) => `${d.field}: ${d.message}`).join("; ");
+  }
+  return (
+    data?.message ??
+    data?.error?.message ??
+    (typeof data === "string" ? data : null) ??
+    err?.message ??
+    fallback
   );
 }

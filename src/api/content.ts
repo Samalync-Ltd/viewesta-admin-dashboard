@@ -90,6 +90,25 @@ export const contentApi = {
       api.put(`/movies/${id}`, body).then((r) => r.data),
     delete: (id: string): Promise<void> =>
       api.delete(`/movies/${id}`).then(() => undefined),
+    /**
+     * Approve a pending movie — sets status to 'approved'.
+     * The backend should fire a `content_approved` FCM notification to the filmmaker.
+     */
+    approve: (id: string, notes?: string): Promise<void> =>
+      api.patch(`/movies/${id}`, {
+        status: 'approved',
+        ...(notes ? { admin_notes: notes } : {}),
+      }).then(() => undefined),
+    /**
+     * Reject a pending movie — sets status to 'rejected'.
+     * The backend should fire a `content_rejected` FCM notification to the filmmaker.
+     */
+    reject: (id: string, rejectionReason: string, notes?: string): Promise<void> =>
+      api.patch(`/movies/${id}`, {
+        status: 'rejected',
+        rejection_reason: rejectionReason,
+        ...(notes ? { admin_notes: notes } : {}),
+      }).then(() => undefined),
     addVideoFile: (id: string, payload: FormData, onUploadProgress?: (progressEvent: any) => void) =>
       api.post(`/movies/${id}/video-files`, payload, { onUploadProgress }).then((r) => r.data),
   },

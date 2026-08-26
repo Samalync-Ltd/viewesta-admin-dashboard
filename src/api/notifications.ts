@@ -145,10 +145,13 @@ export async function registerDevice(token: string): Promise<void> {
     localStorage.setItem("viewesta_admin_device_id", device_id);
   }
 
+  // Field names must match the backend contract (same as viewesta-frontend):
+  //   platform  → 'web'
+  //   device_id → unique per-browser identifier
   const body = {
     token,
-    deviceType: "web",
-    deviceName: device_id,
+    platform: "web",
+    device_id,
   };
   console.log("[Notifications][registerDevice] Request body:", JSON.stringify(body));
 

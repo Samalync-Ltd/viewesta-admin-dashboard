@@ -41,7 +41,7 @@ export function CastStep({ data, updateData, onNext, onBack }: StepProps) {
             Cast Members
           </h3>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Add actors and their roles for this series.
+            Add actors and their roles for this show.
           </p>
         </div>
         <button

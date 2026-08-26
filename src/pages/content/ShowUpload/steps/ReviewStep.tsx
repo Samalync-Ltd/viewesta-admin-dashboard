@@ -12,7 +12,7 @@ export function ReviewStep({ data, onBack, onSubmit, isSubmitting }: ReviewStepP
   // Simple validation checks for required fields
   const missingFields: string[] = [];
   
-  if (!data.title) missingFields.push("Series Title");
+  if (!data.title) missingFields.push("Show Title");
   if (!data.description) missingFields.push("Description");
   if (!data.poster) missingFields.push("Poster Image");
   if (!data.backdrop) missingFields.push("Backdrop Image");
@@ -26,7 +26,7 @@ export function ReviewStep({ data, onBack, onSubmit, isSubmitting }: ReviewStepP
           Review & Submit
         </h3>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Review the series information before finalizing the upload.
+          Review the show information before finalizing the upload.
         </p>
       </div>
 

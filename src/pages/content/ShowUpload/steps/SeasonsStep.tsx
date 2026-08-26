@@ -90,7 +90,7 @@ export function SeasonsStep({ data, updateData, onNext, onBack }: StepProps) {
             Seasons & Episodes
           </h3>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Build the structure of the series.
+            Build the structure of the show.
           </p>
         </div>
         <button

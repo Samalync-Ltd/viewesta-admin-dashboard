@@ -4,7 +4,46 @@ import { mockDb, mockDelay } from "../data/mockDb";
 import type { PaginatedResponse, ListParams } from "../types/api";
 import type { Filmmaker } from "../types/models";
 
+/**
+ * A filmmaker as the real backend actually exposes one.
+ *
+ * NOTE: there is no `/filmmakers` resource. `filmmakerRoutes` is mounted at
+ * `/filmmaker` (singular) and only exposes contract/payout/my-movies routes —
+ * no list, create, update or delete. A live probe of `GET /api/v1/filmmakers`
+ * returns 404, so every non-`listOptions` method below only works in mock mode.
+ *
+ * Filmmakers are users with `user_type = 'filmmaker'`
+ * (users_user_type_check: 'viewer' | 'filmmaker' | 'admin'), so the real
+ * listing is the admin user endpoint.
+ */
+export interface FilmmakerOption {
+  id: string;
+  email: string;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  is_active?: boolean;
+}
+
+/** Human label for a filmmaker row, falling back through the available names. */
+export function filmmakerLabel(f: FilmmakerOption): string {
+  const full = [f.first_name, f.last_name].filter(Boolean).join(" ").trim();
+  return full || f.username || f.email;
+}
+
 export const filmmakersApi = {
+  /**
+   * GET /admin/users?user_type=filmmaker — admin-only, and the only filmmaker
+   * listing that exists against the real backend. Used to populate selectors.
+   */
+  listOptions: async (search?: string): Promise<FilmmakerOption[]> => {
+    const { data } = await api.get("/admin/users", {
+      params: { user_type: "filmmaker", limit: 200, ...(search ? { search } : {}) },
+    });
+    const body = (data as any)?.data ?? data;
+    return Array.isArray(body?.users) ? body.users : [];
+  },
+
   list: (params?: ListParams) =>
     useMock
       ? mockDelay(250).then(() => mockDb.getFilmmakers(params))

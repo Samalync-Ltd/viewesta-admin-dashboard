@@ -5,6 +5,7 @@ import {
   deleteNotification,
   formatNotificationTime,
   getNotifications,
+  getUnreadNotifications,
   getRegisteredDevices,
   markAllRead,
   markNotificationRead,
@@ -39,9 +40,15 @@ export function NotificationsPage() {
     }
   );
 
+  // The inbox defaults to Unread. Marking something read must drop it out of
+  // this list, not just restyle it — so the unread view is sourced from
+  // GET /notifications/unread, which only ever returns is_read = false rows.
+  const [view, setView] = useState<"unread" | "all">("unread");
+
   const inboxQuery = useQuery({
-    queryKey: ["notification-inbox"],
-    queryFn: () => getNotifications(PAGE_LIMIT, 0),
+    queryKey: ["notification-inbox", view],
+    queryFn: () =>
+      view === "unread" ? getUnreadNotifications() : getNotifications(PAGE_LIMIT, 0),
   });
 
   const devicesQuery = useQuery({
@@ -52,7 +59,7 @@ export function NotificationsPage() {
   useEffect(() => {
     if (!pendingNotification) return;
     queryClient.setQueryData<{ notifications: AdminNotification[]; unreadCount: number }>(
-      ["notification-inbox"],
+      ["notification-inbox", view],
       (current) => {
         const previous = current ?? { notifications: [], unreadCount: 0 };
         if (previous.notifications.some((item) => item.id === pendingNotification.id)) {
@@ -66,7 +73,7 @@ export function NotificationsPage() {
       }
     );
     clearPendingNotification();
-  }, [clearPendingNotification, pendingNotification, queryClient]);
+  }, [clearPendingNotification, pendingNotification, queryClient, view]);
 
   const sendMutation = useMutation({
     mutationFn: () => notificationsApi.send({ title, body, target }),
@@ -106,7 +113,30 @@ export function NotificationsPage() {
     onSuccess: (_result, id) => {
       const notification = inboxQuery.data?.notifications.find((item) => item.id === id);
       markReadLocally(id, !notification?.is_read);
+
+      // Drop it from the unread list immediately; in the All view keep the row
+      // but flip its flag so the indicator updates.
+      queryClient.setQueryData<{ notifications: AdminNotification[]; unreadCount: number }>(
+        ["notification-inbox", view],
+        (current) => {
+          if (!current) return current;
+          const stillUnread = Math.max(0, current.unreadCount - 1);
+          return view === "unread"
+            ? {
+                notifications: current.notifications.filter((item) => item.id !== id),
+                unreadCount: stillUnread,
+              }
+            : {
+                notifications: current.notifications.map((item) =>
+                  item.id === id ? { ...item, is_read: true } : item
+                ),
+                unreadCount: stillUnread,
+              };
+        }
+      );
+
       void queryClient.invalidateQueries({ queryKey: ["notification-inbox"] });
+      void refreshUnreadCount();
     },
   });
 
@@ -114,7 +144,22 @@ export function NotificationsPage() {
     mutationFn: markAllRead,
     onSuccess: () => {
       markAllReadLocally();
+      // Unread view empties out entirely.
+      queryClient.setQueryData<{ notifications: AdminNotification[]; unreadCount: number }>(
+        ["notification-inbox", view],
+        (current) =>
+          current
+            ? {
+                notifications:
+                  view === "unread"
+                    ? []
+                    : current.notifications.map((item) => ({ ...item, is_read: true })),
+                unreadCount: 0,
+              }
+            : current
+      );
       void queryClient.invalidateQueries({ queryKey: ["notification-inbox"] });
+      void refreshUnreadCount();
     },
   });
 
@@ -124,6 +169,7 @@ export function NotificationsPage() {
       const notification = inboxQuery.data?.notifications.find((item) => item.id === id);
       deleteLocally(!notification?.is_read);
       void queryClient.invalidateQueries({ queryKey: ["notification-inbox"] });
+      void refreshUnreadCount();
     },
   });
 
@@ -169,6 +215,24 @@ export function NotificationsPage() {
                 Admin inbox
               </h2>
               <p className="text-sm text-slate-500">{unreadCount} unread</p>
+              <div className="mt-2 flex gap-1" role="tablist" aria-label="Inbox filter">
+                {(["unread", "all"] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    role="tab"
+                    aria-selected={view === v}
+                    onClick={() => setView(v)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                      view === v
+                        ? "bg-primary-600 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                    }`}
+                  >
+                    {v === "unread" ? "Unread" : "All"}
+                  </button>
+                ))}
+              </div>
             </div>
             <button
               type="button"
@@ -186,7 +250,7 @@ export function NotificationsPage() {
             </div>
           ) : inbox.length === 0 ? (
             <div className="py-12 text-center text-slate-500 dark:text-slate-400">
-              No received notifications yet
+              {view === "unread" ? "Nothing unread — you are all caught up" : "No received notifications yet"}
             </div>
           ) : (
             <ul className="divide-y divide-slate-200 dark:divide-slate-700">

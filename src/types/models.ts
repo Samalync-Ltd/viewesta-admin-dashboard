@@ -1,4 +1,21 @@
-export type ContentStatus = "draft" | "published" | "approved" | "archived";
+/**
+ * Statuses the backend accepts: "pending" | "approved" | "rejected" | "draft"
+ * (movies_status_check / series_status_check, and the Joi validators).
+ *
+ * @deprecated "published" and "archived" are NOT backend statuses — they exist
+ * nowhere in viewesta-backend and are rejected by the DB CHECK constraint.
+ * They are retained here only until their removal is signed off; use
+ * `BackendContentStatus` from `src/lib/contentStatus.ts` for anything new.
+ */
+export type ContentStatus =
+  | "draft"
+  | "approved"
+  | "pending"
+  | "rejected"
+  /** @deprecated not a backend status */
+  | "published"
+  /** @deprecated not a backend status */
+  | "archived";
 
 
 export interface Movie {

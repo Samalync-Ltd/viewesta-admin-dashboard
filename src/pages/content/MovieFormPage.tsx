@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { CheckCircle, XCircle } from "lucide-react";
 import { contentApi, type ContentMediaFiles } from "../../api/content";
 import { toast } from "../../components/ui/Toast";
 import { CONTENT_STATUSES, STATUS_LABELS } from "../../lib/contentStatus";
@@ -180,6 +181,9 @@ export function MovieFormPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState("");
+  // ── Approval review state ───────────────────────────────────────
+  const [isRejectOpen, setIsRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   const { data: categories } = useQuery({
     queryKey: ["content", "categories"],
@@ -222,6 +226,30 @@ export function MovieFormPage() {
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
 
+  // ── Approval mutations ──────────────────────────────────────────
+  const approveMutation = useMutation({
+    mutationFn: () => contentApi.movies.approve(id!),
+    onSuccess: () => {
+      toast("Movie approved — the filmmaker has been notified.", "success");
+      queryClient.invalidateQueries({ queryKey: ["content", "movies"] });
+      navigate("/content/movies");
+    },
+    onError: (err: any) => toast(extractError(err, "Approval failed"), "error"),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (reason: string) => contentApi.movies.reject(id!, reason),
+    onSuccess: () => {
+      toast("Movie rejected — the filmmaker has been notified.", "success");
+      setIsRejectOpen(false);
+      setRejectReason("");
+      queryClient.invalidateQueries({ queryKey: ["content", "movies"] });
+      navigate("/content/movies");
+    },
+    onError: (err: any) => toast(extractError(err, "Rejection failed"), "error"),
+  });
+
+  // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -364,6 +392,76 @@ export function MovieFormPage() {
           {isNew ? "Create a new movie" : "Update movie details"}
         </p>
       </div>
+
+      {/* ── Pending Review Banner ───────────────────────────────────────── */}
+      {!isNew && form.status === "pending" && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-600 dark:bg-amber-900/20">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="font-semibold text-amber-900 dark:text-amber-300">
+                ⏳ Pending Review
+              </h2>
+              <p className="mt-1 text-sm text-amber-800 dark:text-amber-400">
+                This movie was submitted by the filmmaker and is waiting for your decision.
+                Approving will publish it on the platform and notify the filmmaker immediately.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                disabled={approveMutation.isPending || rejectMutation.isPending}
+                onClick={() => approveMutation.mutate()}
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                <CheckCircle className="h-4 w-4" />
+                {approveMutation.isPending ? "Approving…" : "Approve"}
+              </button>
+              <button
+                type="button"
+                disabled={approveMutation.isPending || rejectMutation.isPending}
+                onClick={() => setIsRejectOpen((o) => !o)}
+                className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-slate-800 dark:text-red-400"
+              >
+                <XCircle className="h-4 w-4" />
+                Reject
+              </button>
+            </div>
+          </div>
+
+          {/* Reject reason input — shown inline when Reject is clicked */}
+          {isRejectOpen && (
+            <div className="mt-4 space-y-3 border-t border-amber-200 pt-4 dark:border-amber-700">
+              <label className="block text-sm font-medium text-amber-900 dark:text-amber-300">
+                Rejection reason <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows={3}
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Explain why this content is being rejected…"
+                className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500 dark:border-amber-600 dark:bg-slate-700 dark:text-slate-100"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={!rejectReason.trim() || rejectMutation.isPending}
+                  onClick={() => rejectMutation.mutate(rejectReason.trim())}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {rejectMutation.isPending ? "Rejecting…" : "Confirm Rejection"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setIsRejectOpen(false); setRejectReason(""); }}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <form
         onSubmit={handleSubmit}

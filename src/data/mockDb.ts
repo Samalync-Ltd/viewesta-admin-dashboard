@@ -17,7 +17,6 @@ import {
   seedTvodPurchases,
   seedWalletTx,
   seedReports,
-  seedNotifications,
   seedOverview,
   seedDailyActivity,
   seedRevenueByType,
@@ -56,7 +55,6 @@ class MockDb {
   tvodPurchases = clone(seedTvodPurchases);
   walletTx = clone(seedWalletTx);
   reports = clone(seedReports);
-  notifications = clone(seedNotifications);
 
   getOverview(): OverviewMetrics {
     return clone(seedOverview);
@@ -199,10 +197,6 @@ class MockDb {
 
   getReport(id: string): Report | undefined {
     return this.reports.find((r) => r.id === id);
-  }
-
-  getNotifications(): { data: typeof seedNotifications; total: number } {
-    return { data: this.notifications, total: this.notifications.length };
   }
 
   getSettings() {

@@ -20,14 +20,8 @@ const PAGE_LIMIT = 20;
 
 export function NotificationsPage() {
   const queryClient = useQueryClient();
-  const {
-    pendingNotification,
-    clearPendingNotification,
-    markReadLocally,
-    markAllReadLocally,
-    deleteLocally,
-    refreshUnreadCount,
-  } = useNotification();
+  const { pendingNotification, clearPendingNotification, refreshUnreadCount } =
+    useNotification();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [target, setTarget] = useState<"all" | "subscribers" | "specific">("all");
@@ -56,24 +50,14 @@ export function NotificationsPage() {
     queryFn: getRegisteredDevices,
   });
 
+  // A push tells us something arrived; it does not tell us what the backend
+  // stored. Re-read the inbox instead of splicing the FCM payload into the
+  // list, so every visible row is a real persisted notification.
   useEffect(() => {
     if (!pendingNotification) return;
-    queryClient.setQueryData<{ notifications: AdminNotification[]; unreadCount: number }>(
-      ["notification-inbox", view],
-      (current) => {
-        const previous = current ?? { notifications: [], unreadCount: 0 };
-        if (previous.notifications.some((item) => item.id === pendingNotification.id)) {
-          return previous;
-        }
-        return {
-          ...previous,
-          notifications: [pendingNotification, ...previous.notifications],
-          unreadCount: previous.unreadCount + 1,
-        };
-      }
-    );
+    void queryClient.invalidateQueries({ queryKey: ["notification-inbox"] });
     clearPendingNotification();
-  }, [clearPendingNotification, pendingNotification, queryClient, view]);
+  }, [clearPendingNotification, pendingNotification, queryClient]);
 
   const sendMutation = useMutation({
     mutationFn: () => notificationsApi.send({ title, body, target }),
@@ -111,9 +95,6 @@ export function NotificationsPage() {
   const markReadMutation = useMutation({
     mutationFn: markNotificationRead,
     onSuccess: (_result, id) => {
-      const notification = inboxQuery.data?.notifications.find((item) => item.id === id);
-      markReadLocally(id, !notification?.is_read);
-
       // Drop it from the unread list immediately; in the All view keep the row
       // but flip its flag so the indicator updates.
       queryClient.setQueryData<{ notifications: AdminNotification[]; unreadCount: number }>(
@@ -143,7 +124,6 @@ export function NotificationsPage() {
   const markAllMutation = useMutation({
     mutationFn: markAllRead,
     onSuccess: () => {
-      markAllReadLocally();
       // Unread view empties out entirely.
       queryClient.setQueryData<{ notifications: AdminNotification[]; unreadCount: number }>(
         ["notification-inbox", view],
@@ -165,9 +145,7 @@ export function NotificationsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteNotification,
-    onSuccess: (_result, id) => {
-      const notification = inboxQuery.data?.notifications.find((item) => item.id === id);
-      deleteLocally(!notification?.is_read);
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["notification-inbox"] });
       void refreshUnreadCount();
     },
@@ -250,7 +228,9 @@ export function NotificationsPage() {
             </div>
           ) : inbox.length === 0 ? (
             <div className="py-12 text-center text-slate-500 dark:text-slate-400">
-              {view === "unread" ? "Nothing unread — you are all caught up" : "No received notifications yet"}
+              {view === "unread"
+                ? "No unread notifications"
+                : "No notifications"}
             </div>
           ) : (
             <ul className="divide-y divide-slate-200 dark:divide-slate-700">

@@ -161,13 +161,13 @@ export async function registerDevice(token: string): Promise<void> {
     localStorage.setItem("viewesta_admin_device_id", device_id);
   }
 
-  // Field names must match the backend contract (same as viewesta-frontend):
-  //   platform  → 'web'
-  //   device_id → unique per-browser identifier
+  // Backend Joi validation only accepts 'ios' | 'android' — 'web' causes a 400.
+  // Web browsers register as 'android' which is the accepted fallback for browser clients.
   const body = {
     token,
-    platform: "web",
+    platform: "android",
     device_id,
+    device_name: `web-admin-${device_id.slice(-6)}`,
   };
   console.log("[Notifications][registerDevice] Request body:", JSON.stringify(body));
 

@@ -217,6 +217,30 @@ export const contentApi = {
       api.put(`/shows/${id}`, buildContentFormData(fields, files)).then((r) => unwrapShow(r.data)),
     delete: (id: string): Promise<void> => api.delete(`/shows/${id}`).then(() => undefined),
 
+    /**
+     * Approve a pending series — mirrors `movies.approve`.
+     *
+     * `POST /shows/admin/:id/approve`, verified live against production on
+     * 2026-08-27: 401 unauthenticated on a well-formed UUID (route exists,
+     * auth-gated), against a 404 on the `/series/admin/:id/approve` spelling
+     * — so the router really does distinguish these, and the 401 is not a
+     * catch-all. This route did NOT exist when series moderation was last
+     * looked at; it does now, which is why the dashboard finally has a
+     * series approve path at all.
+     *
+     * `/shows` and `/series` are the same router elsewhere in this file, but
+     * NOT here — only the `/shows` spelling is mounted for admin moderation.
+     */
+    approve: (id: string): Promise<void> =>
+      api.post(`/shows/admin/${id}/approve`).then(() => undefined),
+    /**
+     * Reject a pending series — mirrors `movies.reject`, including the same
+     * unproven-`reason` caveat documented there: the field is sent because it
+     * is the only plausible name, but it is not confirmed to be persisted.
+     */
+    reject: (id: string, reason: string): Promise<void> =>
+      api.post(`/shows/admin/${id}/reject`, { reason }).then(() => undefined),
+
     /** POST /shows/:showId/seasons */
     createSeason: (showId: string, body: { season_number: number; title?: string; description?: string; release_year?: number }) =>
       api.post(`/shows/${showId}/seasons`, body).then((r) => r.data?.data?.season ?? r.data?.data ?? r.data),

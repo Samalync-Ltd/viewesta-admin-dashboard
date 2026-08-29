@@ -154,20 +154,6 @@ export const seedReports: Report[] = [
   })),
 ];
 
-export const seedNotifications: { id: string; title: string; body: string; target: string; scheduledAt: string; sentAt?: string; status: string }[] = [
-  { id: "n1", title: "New Release", body: "The Last Horizon is now available.", target: "all", scheduledAt: day(5), sentAt: day(5), status: "sent" },
-  { id: "n2", title: "Weekly Picks", body: "Check out this week's top picks.", target: "subscribers", scheduledAt: day(2), sentAt: day(2), status: "sent" },
-  ...Array.from({ length: 8 }, (_, i) => ({
-    id: `n${i + 3}`,
-    title: `Notification ${i + 3}`,
-    body: "Body text.",
-    target: ["all", "subscribers", "specific"][i % 3],
-    scheduledAt: day(10 + i),
-    sentAt: i % 2 ? day(10 + i) : undefined,
-    status: i % 2 ? "sent" : "scheduled",
-  })),
-];
-
 export const seedOverview: OverviewMetrics = {
   totalUsers: 12540,
   activeSubscriptions: 2130,

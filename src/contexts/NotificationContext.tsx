@@ -27,6 +27,10 @@ import { playNotificationChime } from "../lib/notificationChime";
  * So the badge is also driven by a poll while the tab is visible. That path is
  * independent of Firebase and is what actually makes new notifications
  * noticeable: badge count, chime, toast, and a document-title marker.
+ *
+ * The count itself is ALWAYS whatever GET /notifications/unread reports. It is
+ * never incremented, decremented or seeded locally, so the badge cannot drift
+ * from the backend or display a number that no notification stands behind.
  */
 const POLL_INTERVAL_MS = 30_000;
 const BASE_TITLE = "Viewesta Admin";
@@ -35,9 +39,6 @@ interface NotificationContextValue {
   unreadCount: number;
   pendingNotification: AdminNotification | null;
   refreshUnreadCount: () => Promise<void>;
-  markReadLocally: (id: string, isCurrentlyUnread: boolean) => void;
-  markAllReadLocally: () => void;
-  deleteLocally: (wasUnread: boolean) => void;
   clearPendingNotification: () => void;
 }
 
@@ -92,17 +93,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setUnreadCount(data.unreadCount);
 
       // A rise since the last poll means something arrived while we were not
-      // looking — alert even when push never delivered anything.
+      // looking. Only ever alert with a real row from the server — if the
+      // server sent a count but no row, there is nothing genuine to show, so
+      // the badge updates silently rather than inventing a placeholder.
       if (previous !== null && data.unreadCount > previous) {
         const latest = data.notifications[0];
-        raiseAlert(
-          latest ?? {
-            id: `poll-${Date.now()}`,
-            title: "New notification",
-            body: "",
-            is_read: false,
-          }
-        );
+        if (latest) raiseAlert(latest);
       }
     } catch (err) {
       console.warn("[Notifications] Failed to refresh unread count", err);
@@ -122,25 +118,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    const bumpCount = () =>
-      setUnreadCount((count) => {
-        const next = count + 1;
-        lastCountRef.current = next;
-        return next;
-      });
-
+    // A push payload is a transient alert signal only. It is NOT written into
+    // the badge or the inbox list — both of those re-read the server, so what
+    // the admin sees is always a persisted notification, never a client-built
+    // object that may not match (or exist in) the backend.
     let unsubscribe: (() => void) | undefined;
     void onForegroundMessage((payload) => {
-      bumpCount();
       raiseAlert(payloadToNotification(payload));
+      void refreshUnreadCount();
     }).then((unsub) => {
       unsubscribe = unsub;
     });
 
     const handleWorkerMessage = (event: MessageEvent) => {
       if (event.data?.type !== "BACKGROUND_FCM") return;
-      bumpCount();
       raiseAlert(payloadToNotification(event.data.payload));
+      void refreshUnreadCount();
     };
 
     navigator.serviceWorker?.addEventListener("message", handleWorkerMessage);
@@ -148,7 +141,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       unsubscribe?.();
       navigator.serviceWorker?.removeEventListener("message", handleWorkerMessage);
     };
-  }, [user, raiseAlert]);
+  }, [user, raiseAlert, refreshUnreadCount]);
 
   // Poll while the tab is visible. Pausing when hidden keeps a backgrounded
   // dashboard from hammering the API; the visibilitychange handler below
@@ -186,13 +179,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       unreadCount,
       pendingNotification,
       refreshUnreadCount,
-      markReadLocally: (_id, isCurrentlyUnread) => {
-        if (isCurrentlyUnread) setUnreadCount((count) => syncCount(lastCountRef, Math.max(0, count - 1)));
-      },
-      markAllReadLocally: () => setUnreadCount(syncCount(lastCountRef, 0)),
-      deleteLocally: (wasUnread) => {
-        if (wasUnread) setUnreadCount((count) => syncCount(lastCountRef, Math.max(0, count - 1)));
-      },
       clearPendingNotification: () => setPendingNotification(null),
     }),
     [pendingNotification, refreshUnreadCount, unreadCount]
@@ -205,10 +191,4 @@ export function useNotification() {
   const ctx = useContext(NotificationContext);
   if (!ctx) throw new Error("useNotification must be used within NotificationProvider");
   return ctx;
-}
-
-/** Keep the alert baseline aligned with locally-applied count changes. */
-function syncCount(ref: { current: number | null }, next: number): number {
-  ref.current = next;
-  return next;
 }

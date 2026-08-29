@@ -163,22 +163,38 @@ export const contentApi = {
     /**
      * Approve a pending movie — sets status to 'approved'.
      * The backend fires a `content_approved` FCM push to the filmmaker.
+     *
+     * NOT `PATCH /movies/:id` — that route does not exist on the backend
+     * (confirmed live: a real PATCH to it returns 404, verified against
+     * production on 2026-08-26). `POST /movies/admin/:id/approve` is the
+     * actual route — it maps to `approveMovie` -> `applyMovieModeration`,
+     * which is the only code path that calls `notifyContentApproved`. The
+     * body is irrelevant here: the controller forces status via a fixed
+     * argument rather than reading `req.body.status`, so `notes`/
+     * `admin_notes` was never read by the backend either way — dropped
+     * rather than sent somewhere it's silently ignored.
      */
-    approve: (id: string, notes?: string): Promise<void> =>
-      api.patch(`/movies/${id}`, {
-        status: "approved",
-        ...(notes ? { admin_notes: notes } : {}),
-      }).then(() => undefined),
+    approve: (id: string): Promise<void> =>
+      api.post(`/movies/admin/${id}/approve`).then(() => undefined),
     /**
      * Reject a pending movie — sets status to 'rejected'.
      * The backend fires a `content_rejected` FCM push to the filmmaker.
+     *
+     * NOT `PATCH /movies/:id` — same 404 as approve (re-confirmed live
+     * 2026-08-27). The real route is `POST /movies/admin/:id/reject`.
+     *
+     * CAVEAT on `reason`: it is sent because that is the only field name the
+     * route could plausibly read, but it is NOT confirmed to be persisted.
+     * In the backend source `rejectMovie` -> `applyMovieModeration` passes a
+     * hard-coded `'rejected'` and never touches `req.body` at all, so on that
+     * code path the reason is dropped. Production is known to be AHEAD of that
+     * source (prod returns an "Invalid ID format" error that does not exist in
+     * it), so prod may well read `reason` — but nobody has proven it does.
+     * Treat the rejection reason as best-effort until a live check with an
+     * admin token shows it stored on the movie.
      */
-    reject: (id: string, rejectionReason: string, notes?: string): Promise<void> =>
-      api.patch(`/movies/${id}`, {
-        status: "rejected",
-        rejection_reason: rejectionReason,
-        ...(notes ? { admin_notes: notes } : {}),
-      }).then(() => undefined),
+    reject: (id: string, reason: string): Promise<void> =>
+      api.post(`/movies/admin/${id}/reject`, { reason }).then(() => undefined),
     /** POST /movies/:id/video-files — multipart, field name must be `video`. */
     addVideoFile: (id: string, payload: FormData, onUploadProgress?: (e: any) => void) =>
       api.post(`/movies/${id}/video-files`, payload, { onUploadProgress }).then((r) => r.data),

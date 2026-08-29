@@ -3,16 +3,6 @@ import type { NotificationPayload } from "../types/models";
 import { getToken, onMessage } from "firebase/messaging";
 import { initializeMessaging } from "../firebase/config";
 
-export interface ScheduledNotification {
-  id: string;
-  title: string;
-  body: string;
-  target: string;
-  scheduledAt: string;
-  sentAt?: string;
-  status: string;
-}
-
 export interface AdminNotification {
   id: string;
   title: string;

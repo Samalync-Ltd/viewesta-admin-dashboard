@@ -4,6 +4,15 @@ import { mockDb, mockDelay } from "../data/mockDb";
 import type { SubscriptionPlan } from "../types/models";
 import type { PaginatedResponse, ListParams } from "../types/api";
 
+function toQuery(params?: ListParams) {
+  const limit = Number(params?.limit ?? 20);
+  const page = Number(params?.page ?? 1);
+  const offset = (page - 1) * limit;
+  const q: Record<string, any> = { ...params, limit, offset };
+  delete q.page;
+  return q;
+}
+
 export interface Subscription {
   id: string;
   userId: string;
@@ -46,19 +55,19 @@ export const monetizationApi = {
     list: (params?: ListParams) =>
       useMock
         ? mockDelay(250).then(() => mockDb.getSubscriptions(params))
-        : api.get<PaginatedResponse<Subscription>>("/monetization/subscriptions", { params }).then((r) => r.data),
+        : api.get<PaginatedResponse<Subscription>>("/admin/subscriptions", { params: toQuery(params) }).then((r) => r.data),
   },
   tvod: {
     purchases: (params?: ListParams) =>
       useMock
         ? mockDelay(250).then(() => mockDb.getTvodPurchases(params))
-        : api.get<PaginatedResponse<TvodPurchase>>("/monetization/tvod/purchases", { params }).then((r) => r.data),
+        : api.get<PaginatedResponse<TvodPurchase>>("/admin/purchases", { params: toQuery(params) }).then((r) => r.data),
   },
   wallet: {
     transactions: (params?: ListParams) =>
       useMock
         ? mockDelay(250).then(() => mockDb.getWalletTransactions(params))
-        : api.get<PaginatedResponse<WalletTransaction>>("/monetization/wallet/transactions", { params }).then((r) => r.data),
+        : api.get<PaginatedResponse<WalletTransaction>>("/admin/transactions", { params: toQuery(params) }).then((r) => r.data),
     credit: (userId: string, amount: number, reason?: string) =>
       api.post("/monetization/wallet/credit", { userId, amount, reason }),
     debit: (userId: string, amount: number, reason?: string) =>

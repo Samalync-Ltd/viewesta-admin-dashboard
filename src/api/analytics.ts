@@ -21,7 +21,17 @@ export const analyticsApi = {
   getOverview: () =>
     useMock
       ? mockDelay(200).then(() => mockDb.getOverview())
-      : api.get<OverviewMetrics>("/analytics/overview").then((r) => r.data),
+      : api.get("/analytics/overview").then((r) => {
+          const raw = r.data?.data || r.data;
+          return {
+            totalUsers: raw.total_users ?? 0,
+            activeSubscriptions: raw.active_subscriptions ?? 0,
+            tvodPurchases: raw.tvod_purchases ?? 0,
+            totalRevenue: raw.total_revenue ?? 0,
+            topMovies: raw.top_movies ?? [],
+            topFilmmakers: raw.top_filmmakers ?? [],
+          } as OverviewMetrics;
+        }),
   getDailyActivity: (days?: number) =>
     useMock
       ? mockDelay(150).then(() => mockDb.getDailyActivity(days))

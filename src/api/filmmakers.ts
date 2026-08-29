@@ -4,6 +4,15 @@ import { mockDb, mockDelay } from "../data/mockDb";
 import type { PaginatedResponse, ListParams } from "../types/api";
 import type { Filmmaker } from "../types/models";
 
+function toQuery(params?: ListParams) {
+  const limit = Number(params?.limit ?? 20);
+  const page = Number(params?.page ?? 1);
+  const offset = (page - 1) * limit;
+  const q: Record<string, any> = { ...params, limit, offset };
+  delete q.page;
+  return q;
+}
+
 /**
  * A filmmaker as the real backend actually exposes one.
  *
@@ -47,11 +56,11 @@ export const filmmakersApi = {
   list: (params?: ListParams) =>
     useMock
       ? mockDelay(250).then(() => mockDb.getFilmmakers(params))
-      : api.get<PaginatedResponse<Filmmaker>>("/filmmakers", { params }).then((r) => r.data),
+      : api.get<PaginatedResponse<Filmmaker>>("/admin/users", { params: { ...toQuery(params), user_type: "filmmaker" } }).then((r) => r.data),
   get: (id: string) =>
     useMock
       ? mockDelay(150).then(() => mockDb.getFilmmaker(id) ?? Promise.reject(new Error("Not found")))
-      : api.get<Filmmaker>(`/filmmakers/${id}`).then((r) => r.data),
+      : api.get<Filmmaker>(`/admin/users/${id}`).then((r) => r.data),
   create: (body: Partial<Filmmaker>) =>
     useMock
       ? mockDelay(300).then(() => mockDb.createFilmmaker(body))

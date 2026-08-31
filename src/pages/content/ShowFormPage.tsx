@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { ImageWithFallback } from "../../components/ui/ImageWithFallback";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { contentApi, type ContentMediaFiles } from "../../api/content";
@@ -470,8 +471,8 @@ function MediaField({
         onChange={(e) => onPick(e.target.files?.[0] || null)}
         className={inputCls}
       />
-      {current && preview && (
-        <img
+      {preview && (
+        <ImageWithFallback
           src={current}
           alt={`Current ${label.toLowerCase()}`}
           className="mt-2 h-16 w-auto rounded object-cover ring-1 ring-slate-200 dark:ring-slate-600"

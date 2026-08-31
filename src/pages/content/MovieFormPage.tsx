@@ -4,6 +4,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { CheckCircle, XCircle } from "lucide-react";
 import { contentApi, type ContentMediaFiles } from "../../api/content";
 import { toast } from "../../components/ui/Toast";
+import { ImageWithFallback } from "../../components/ui/ImageWithFallback";
 import { CONTENT_STATUSES, STATUS_LABELS } from "../../lib/contentStatus";
 import { AGE_RATINGS, VIDEO_QUALITIES } from "../../lib/contentOptions";
 import type { Category } from "../../types/models";
@@ -740,8 +741,10 @@ export function MovieFormPage() {
                 onChange={(e) => setPosterFile(e.target.files?.[0] || null)}
                 className={inputCls}
               />
-              {!isNew && form.posterUrl && (
-                <img
+              {/* Renders the bundled placeholder when the URL is null or
+                  the presigned S3 link has expired, instead of a broken icon. */}
+              {!isNew && (
+                <ImageWithFallback
                   src={form.posterUrl}
                   alt="Current poster"
                   className="mt-2 h-16 w-12 rounded object-cover ring-1 ring-slate-200 dark:ring-slate-600"
@@ -759,8 +762,10 @@ export function MovieFormPage() {
                 onChange={(e) => setBackdropFile(e.target.files?.[0] || null)}
                 className={inputCls}
               />
-              {!isNew && form.backdropUrl && (
-                <img
+              {/* Renders the bundled placeholder when the URL is null or
+                  the presigned S3 link has expired, instead of a broken icon. */}
+              {!isNew && (
+                <ImageWithFallback
                   src={form.backdropUrl}
                   alt="Current backdrop"
                   className="mt-2 h-10 w-16 rounded object-cover ring-1 ring-slate-200 dark:ring-slate-600"

@@ -2,6 +2,7 @@ import { api } from "./client";
 import { useMock } from "../config/useMock";
 import { mockDb, mockDelay } from "../data/mockDb";
 import type { PaginatedResponse, ListParams } from "../types/api";
+import { toListQuery, toPaginatedList } from "./listQuery";
 import type { Filmmaker } from "../types/models";
 
 /**
@@ -44,10 +45,27 @@ export const filmmakersApi = {
     return Array.isArray(body?.users) ? body.users : [];
   },
 
-  list: (params?: ListParams) =>
-    useMock
-      ? mockDelay(250).then(() => mockDb.getFilmmakers(params))
-      : api.get<PaginatedResponse<Filmmaker>>("/filmmakers", { params }).then((r) => r.data),
+  /**
+   * GET /admin/users?user_type=filmmaker. `/filmmakers` does not exist (404,
+   * verified live 2026-08-31) — filmmakers are users with a role, not a
+   * separate collection, so the rows come back under `users`.
+   */
+  list: async (params?: ListParams): Promise<PaginatedResponse<Filmmaker>> => {
+    if (useMock) return mockDelay(250).then(() => mockDb.getFilmmakers(params));
+    const { query, page, limit } = toListQuery({
+      limit: 20,
+      ...(params ?? {}),
+      user_type: "filmmaker",
+    });
+    const { data } = await api.get("/admin/users", { params: query });
+    return toPaginatedList<Filmmaker>(data, "users", page, limit);
+  },
+  /**
+   * NO BACKEND ROUTE — same gap as usersApi: only the list exists. `/filmmakers`
+   * and `/filmmakers/:id` 404, and there is no `/admin/users/:id` to move them
+   * to (also 404, verified live 2026-08-31). Creating, editing or deleting a
+   * filmmaker from the dashboard needs new endpoints server-side.
+   */
   get: (id: string) =>
     useMock
       ? mockDelay(150).then(() => mockDb.getFilmmaker(id) ?? Promise.reject(new Error("Not found")))

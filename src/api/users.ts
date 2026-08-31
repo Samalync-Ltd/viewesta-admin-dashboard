@@ -30,7 +30,7 @@ export const usersApi = {
   get: (id: string) =>
     useMock
       ? mockDelay(150).then(() => mockDb.getUser(id) ?? Promise.reject(new Error("Not found")))
-      : api.get<User>(`/users/${id}`).then((r) => r.data),
+      : api.get<User>(`/admin/users/${id}`).then((r) => r.data),
   block: (id: string): Promise<void> =>
     useMock ? mockDelay(200).then(() => { mockDb.blockUser(id); }) : api.post(`/users/${id}/block`).then(() => undefined),
   unblock: (id: string): Promise<void> =>

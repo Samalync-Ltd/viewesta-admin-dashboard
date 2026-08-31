@@ -69,7 +69,7 @@ export const filmmakersApi = {
   get: (id: string) =>
     useMock
       ? mockDelay(150).then(() => mockDb.getFilmmaker(id) ?? Promise.reject(new Error("Not found")))
-      : api.get<Filmmaker>(`/filmmakers/${id}`).then((r) => r.data),
+      : api.get<Filmmaker>(`/admin/users/${id}`).then((r) => r.data),
   create: (body: Partial<Filmmaker>) =>
     useMock
       ? mockDelay(300).then(() => mockDb.createFilmmaker(body))

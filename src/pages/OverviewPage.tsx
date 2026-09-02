@@ -18,7 +18,7 @@ import { Users, CreditCard, Film, DollarSign } from "lucide-react";
 const PIE_COLORS = ["#f97316", "#10b981", "#eab308"];
 
 export function OverviewPage() {
-  const { data: overview, isLoading: overviewLoading } = useQuery({
+  const { data: overview, isLoading: overviewLoading, isError: overviewError } = useQuery({
     queryKey: ["analytics", "overview"],
     queryFn: analyticsApi.getOverview,
   });
@@ -37,15 +37,23 @@ export function OverviewPage() {
   const pieData =
     revenueByType && typeof revenueByType === "object"
       ? [
-          { name: "Subscription", value: Number(revenueByType.subscription) || 0 },
-          { name: "TVOD", value: Number(revenueByType.tvod) || 0 },
-        ].filter((d) => d.value > 0)
+        { name: "Subscription", value: Number(revenueByType.subscription) || 0 },
+        { name: "TVOD", value: Number(revenueByType.tvod) || 0 },
+      ].filter((d) => d.value > 0)
       : [];
 
   if (overviewLoading && !overview) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (overviewError && !overview) {
+    return (
+      <div className="rounded-lg border border-red-900/50 bg-red-950/20 p-6 text-red-300">
+        Unable to load platform statistics. Check the API connection and admin authorization.
       </div>
     );
   }

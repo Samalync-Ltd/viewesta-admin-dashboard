@@ -4,7 +4,7 @@ import type { LoginPayload } from "../types/auth";
 export const authApi = {
   login: async (payload: LoginPayload): Promise<any> => {
     const { data } = await api.post("/auth/login", payload);
-    
+
     // Handle different possible backend response structures
     const token = data?.token || data?.access_token || data?.data?.token || data?.data?.access_token;
     const refreshToken = data?.refreshToken || data?.refresh_token || data?.data?.refreshToken || data?.data?.refresh_token;
@@ -16,7 +16,7 @@ export const authApi = {
 
     setStoredToken(token);
     if (refreshToken) setStoredRefreshToken(refreshToken);
-    
+
     return { token, refreshToken, ...data };
   },
   me: async () => {

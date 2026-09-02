@@ -30,40 +30,18 @@ export interface ActivityPoint {
 }
 
 export const analyticsApi = {
-  /**
-   * GET /analytics/overview.
-   *
-   * The call already pointed here; what was broken was the parsing. It typed
-   * the raw axios body as OverviewMetrics and returned `r.data`, i.e. the
-   * whole `{ success, message, data }` envelope. Every field below therefore
-   * read as `undefined` off the envelope and the dashboard rendered zeros,
-   * even though the server was returning 58 users / 1 subscription / $4.99.
-   *
-   * The real payload (verified live 2026-08-31) is flat snake_case inside
-   * `data`, alongside richer nested blocks:
-   *   total_users, active_subscriptions, tvod_purchases, total_revenue,
-   *   users{}, subscriptions{}, purchases{}, revenue{}, content{},
-   *   most_watched_movies[], top_filmmakers[]
-   *
-   * Note the filmmaker list is `top_filmmakers`, NOT `most_followed_filmmakers`
-   * (that key is absent). It ranks by movie_count / watch_count and carries no
-   * follower field at all, so the "followers" figure stays 0 — see the note on
-   * OverviewMetrics.topFilmmakers.
-   */
   getOverview: (): Promise<OverviewMetrics> =>
     useMock
       ? mockDelay(200).then(() => mockDb.getOverview())
-      : api.get("/analytics/overview").then((r) => {
+      : api.get("/admin/stats").then((r) => {
           const d = r.data?.data ?? r.data ?? {};
-          const num = (v: unknown) => Number(v ?? 0) || 0;
+          const num = (v: unknown) => Number(v ?? 0);
           return {
-            totalUsers: num(d.total_users ?? d.users?.total),
-            activeSubscriptions: num(
-              d.active_subscriptions ?? d.subscriptions?.active,
-            ),
-            tvodPurchases: num(d.tvod_purchases ?? d.purchases?.total),
-            totalRevenue: num(d.total_revenue ?? d.revenue?.total),
-            topMovies: (d.most_watched_movies ?? []).map((m: any) => ({
+            totalUsers: num(d.users?.total_users ?? d.total_users ?? d.totalUsers),
+            activeSubscriptions: num(d.subscriptions?.active_subscriptions ?? d.active_subscriptions ?? d.activeSubscriptions),
+            tvodPurchases: num(d.purchases?.total_ppv_purchases ?? d.purchases?.active_ppv_purchases ?? d.tvod_purchases ?? d.tvodPurchases),
+            totalRevenue: num(d.revenue?.total_revenue ?? d.total_revenue ?? d.totalRevenue),
+            topMovies: (d.most_watched_movies ?? d.top_movies ?? []).map((m: any) => ({
               id: String(m.id ?? ""),
               title: String(m.title ?? ""),
               views: num(m.watch_count ?? m.views),

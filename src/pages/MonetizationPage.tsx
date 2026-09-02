@@ -58,22 +58,20 @@ export function MonetizationPage() {
         <button
           type="button"
           onClick={() => setPlansTab(true)}
-          className={`border-b-2 px-4 py-2 text-sm font-medium ${
-            plansTab
+          className={`border-b-2 px-4 py-2 text-sm font-medium ${plansTab
               ? "border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400"
               : "border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-          }`}
+            }`}
         >
           Plans
         </button>
         <button
           type="button"
           onClick={() => setPlansTab(false)}
-          className={`border-b-2 px-4 py-2 text-sm font-medium ${
-            !plansTab
+          className={`border-b-2 px-4 py-2 text-sm font-medium ${!plansTab
               ? "border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400"
               : "border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-          }`}
+            }`}
         >
           Subscriptions & TVOD & Wallet
         </button>

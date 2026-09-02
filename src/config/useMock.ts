@@ -1,4 +1,4 @@
 /**
- * Use mock data when true. Set VITE_USE_MOCK=false in .env when API is ready.
+ * Use mock data only when explicitly enabled.
  */
-export const useMock = import.meta.env.VITE_USE_MOCK !== "false";
+export const useMock = import.meta.env.VITE_USE_MOCK === "true";

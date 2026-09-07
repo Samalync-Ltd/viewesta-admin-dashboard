@@ -32,6 +32,28 @@ export function filmmakerLabel(f: FilmmakerOption): string {
   return full || f.username || f.email;
 }
 
+/**
+ * `/admin/users?user_type=filmmaker` rows are plain `users` rows (verified
+ * live 2026-09-07: real data returned, e.g. 11 filmmakers). There is no
+ * "follower" or "movie count" concept on this endpoint at all — those stay
+ * at 0 rather than being invented; the list would need those fields added
+ * server-side to show real numbers here.
+ */
+function normalizeFilmmaker(raw: any): Filmmaker {
+  const name = [raw?.first_name, raw?.last_name].filter(Boolean).join(" ").trim();
+  return {
+    id: raw?.id,
+    name: name || raw?.username || raw?.email,
+    bio: raw?.bio ?? undefined,
+    avatarUrl: raw?.avatar_url ?? undefined,
+    followerCount: Number(raw?.follower_count ?? 0) || 0,
+    movieCount: Number(raw?.movie_count ?? 0) || 0,
+    enabled: raw?.is_active !== false,
+    movieIds: [],
+    createdAt: raw?.created_at ?? raw?.createdAt,
+  };
+}
+
 export const filmmakersApi = {
   /**
    * GET /admin/users?user_type=filmmaker — admin-only, and the only filmmaker
@@ -58,26 +80,54 @@ export const filmmakersApi = {
       user_type: "filmmaker",
     });
     const { data } = await api.get("/admin/users", { params: query });
-    return toPaginatedList<Filmmaker>(data, "users", page, limit);
+    const page_ = toPaginatedList<any>(data, "users", page, limit);
+    return { ...page_, data: page_.data.map(normalizeFilmmaker) };
   },
   /**
-   * NO BACKEND ROUTE — same gap as usersApi: only the list exists. `/filmmakers`
-   * and `/filmmakers/:id` 404, and there is no `/admin/users/:id` to move them
-   * to (also 404, verified live 2026-08-31). Creating, editing or deleting a
-   * filmmaker from the dashboard needs new endpoints server-side.
+   * GET /admin/users/:id — verified live 2026-09-07: this now works (200),
+   * contrary to the 404 recorded here on 2026-08-31 (the backend added this
+   * route since then). Works for any user id regardless of user_type.
    */
-  get: (id: string) =>
-    useMock
-      ? mockDelay(150).then(() => mockDb.getFilmmaker(id) ?? Promise.reject(new Error("Not found")))
-      : api.get<Filmmaker>(`/admin/users/${id}`).then((r) => r.data),
+  get: async (id: string): Promise<Filmmaker> => {
+    if (useMock) {
+      return mockDelay(150).then(() => mockDb.getFilmmaker(id) ?? Promise.reject(new Error("Not found")));
+    }
+    const { data } = await api.get(`/admin/users/${id}`);
+    return normalizeFilmmaker(data?.data?.user ?? data?.user ?? data);
+  },
+  /**
+   * NO BACKEND ROUTE for creating a filmmaker. `/filmmakers` (POST) 404s
+   * live (2026-08-31) — filmmaker accounts are created via normal
+   * registration (user_type: 'filmmaker'), there is no admin-side creation
+   * endpoint. Left pointing at its original path rather than disguised as
+   * fixed.
+   */
   create: (body: Partial<Filmmaker>) =>
     useMock
       ? mockDelay(300).then(() => mockDb.createFilmmaker(body))
       : api.post<Filmmaker>("/filmmakers", body).then((r) => r.data),
-  update: (id: string, body: Partial<Filmmaker>) =>
-    useMock
-      ? mockDelay(200).then(() => mockDb.updateFilmmaker(id, body) ?? Promise.reject(new Error("Not found")))
-      : api.patch<Filmmaker>(`/filmmakers/${id}`, body).then((r) => r.data),
+  /**
+   * Enabling/disabling a filmmaker is the same is_active flag as any other
+   * user, so this reuses the real, verified-live (2026-09-07)
+   * PATCH /admin/users/:id/status endpoint instead of the nonexistent
+   * PATCH /filmmakers/:id. Only `enabled` is applied — bio/name edits still
+   * have no backend route (see `create` above) and are silently dropped if
+   * passed here.
+   */
+  update: async (id: string, body: Partial<Filmmaker>): Promise<void> => {
+    if (useMock) {
+      await mockDelay(200).then(() => mockDb.updateFilmmaker(id, body) ?? Promise.reject(new Error("Not found")));
+      return;
+    }
+    if (typeof body.enabled === "boolean") {
+      await api.patch(`/admin/users/${id}/status`, { is_active: body.enabled });
+    }
+  },
+  /**
+   * NO BACKEND ROUTE. `/filmmakers/:id` (DELETE) 404s live (2026-08-31);
+   * there is no way to delete a user account from the admin API at all.
+   * Left pointing at its original path rather than disguised as fixed.
+   */
   delete: (id: string): Promise<void> =>
     useMock ? mockDelay(200).then(() => { mockDb.deleteFilmmaker(id); }) : api.delete(`/filmmakers/${id}`).then(() => undefined),
 };

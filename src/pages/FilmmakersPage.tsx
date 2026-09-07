@@ -28,7 +28,9 @@ export function FilmmakersPage() {
       setDeleteId(null);
       toast("Filmmaker deleted", "success");
     },
-    onError: (err: Error) => toast(err.message ?? "Delete failed", "error"),
+    // DELETE /filmmakers/:id has no backend route (404 live) — there is
+    // currently no way to delete a user account via the admin API.
+    onError: () => toast("Deleting a filmmaker isn't supported by the backend yet.", "error"),
   });
 
   const toggleMutation = useMutation({

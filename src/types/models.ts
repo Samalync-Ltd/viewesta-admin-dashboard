@@ -80,7 +80,8 @@ export interface User {
 export interface SubscriptionPlan {
   id: string;
   name: string;
-  type: "monthly" | "yearly";
+  // Real backend plan types (verified live 2026-09-07): monthly, yearly, mobile.
+  type: "monthly" | "yearly" | "mobile" | string;
   price: number;
   currency: string;
   enabled: boolean;

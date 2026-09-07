@@ -117,9 +117,6 @@ export function MonetizationPage() {
                       </span>
                     )}
                   </div>
-                  <span className="text-sm text-slate-500 dark:text-slate-400">
-                    {p.activeCount ?? 0} active
-                  </span>
                 </li>
               ))}
             </ul>
@@ -149,10 +146,21 @@ export function MonetizationPage() {
                     className="flex items-center justify-between px-4 py-2 text-sm"
                   >
                     <span className="text-slate-600 dark:text-slate-400">
-                      User {s.userId} · Plan {s.planId}
+                      {s.userName || s.userEmail || `User ${s.userId}`} · Plan {s.planId}
+                      {s.price != null && ` · ${s.currency ?? "USD"} ${s.price}`}
                     </span>
-                    <span className="text-slate-500 dark:text-slate-400">
-                      {s.status} · {s.startDate}
+                    <span className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                      <span
+                        className={
+                          s.status === "active"
+                            ? "rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
+                            : "rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-400"
+                        }
+                      >
+                        {s.status}
+                      </span>
+                      {s.startDate?.slice(0, 10)}
+                      {s.endDate && ` – ${s.endDate.slice(0, 10)}`}
                     </span>
                   </li>
                 ))}
@@ -192,13 +200,13 @@ export function MonetizationPage() {
                     className="flex items-center justify-between px-4 py-2 text-sm"
                   >
                     <span className="text-slate-600 dark:text-slate-400">
-                      User {t.userId} · Movie {t.movieId}
+                      {t.userEmail || `User ${t.userId}`} · {t.movieTitle || `Movie ${t.movieId}`}
                     </span>
                     <span className="font-medium text-slate-900 dark:text-slate-100">
-                      ${t.amount.toFixed(2)}
+                      {t.currency ?? "USD"} {t.amount.toFixed(2)}
                     </span>
                     <span className="text-slate-500 dark:text-slate-400">
-                      {t.createdAt}
+                      {t.createdAt?.slice(0, 10)}
                     </span>
                   </li>
                 ))}
@@ -232,26 +240,29 @@ export function MonetizationPage() {
               </div>
             ) : (
               <ul className="divide-y divide-slate-200 dark:divide-slate-700">
-                {wallet.map((w) => (
-                  <li
-                    key={w.id}
-                    className="flex items-center justify-between px-4 py-2 text-sm"
-                  >
-                    <span className="text-slate-600 dark:text-slate-400">
-                      User {w.userId} · {w.type}
-                    </span>
-                    <span
-                      className={
-                        w.type === "credit" ? "text-emerald-600" : "text-red-600"
-                      }
+                {wallet.map((w) => {
+                  // Only wallet_topup adds money to the wallet; subscription
+                  // and purchase are outgoing payments (see WalletTransaction
+                  // doc-comment in api/monetization.ts).
+                  const isCredit = w.type === "wallet_topup";
+                  return (
+                    <li
+                      key={w.id}
+                      className="flex items-center justify-between px-4 py-2 text-sm"
                     >
-                      {w.type === "credit" ? "+" : "-"}${w.amount.toFixed(2)}
-                    </span>
-                    <span className="text-slate-500 dark:text-slate-400">
-                      {w.createdAt}
-                    </span>
-                  </li>
-                ))}
+                      <span className="text-slate-600 dark:text-slate-400">
+                        {w.userEmail || `User ${w.userId}`} · {w.type}
+                        {w.status && w.status !== "completed" && ` (${w.status})`}
+                      </span>
+                      <span className={isCredit ? "text-emerald-600" : "text-red-600"}>
+                        {isCredit ? "+" : "-"}${w.amount.toFixed(2)}
+                      </span>
+                      <span className="text-slate-500 dark:text-slate-400">
+                        {w.createdAt?.slice(0, 10)}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
             {walletTotalPages > 1 && (

@@ -46,7 +46,8 @@ export function UserDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast("Access granted", "success");
     },
-    onError: (err: Error) => toast(err.message ?? "Failed", "error"),
+    // /users/:id/grant-access has no backend route (404 live).
+    onError: () => toast("Grant access isn't supported by the backend yet.", "error"),
   });
 
   if (!id) return null;

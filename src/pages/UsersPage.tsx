@@ -49,7 +49,10 @@ export function UsersPage() {
       setGrantId(null);
       toast("Access granted", "success");
     },
-    onError: (err: Error) => toast(err.message ?? "Grant failed", "error"),
+    // /users/:id/grant-access has no backend route (404 live) — say so
+    // plainly instead of surfacing axios's "Request failed with status
+    // code 404".
+    onError: () => toast("Grant access isn't supported by the backend yet.", "error"),
   });
 
   const users = Array.isArray(data?.data) ? data.data : [];

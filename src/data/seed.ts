@@ -197,7 +197,8 @@ export const seedDownloadRules = {
   subscriptionRequired: true,
 };
 
-export const seedRatings: { movieId: string; movieTitle: string; averageRating: number; count: number; flaggedCount?: number }[] = seedMovies.slice(0, 10).map((m, i) => ({
+export const seedRatings: { id: string; movieId: string; movieTitle: string; averageRating: number; count: number; flaggedCount?: number }[] = seedMovies.slice(0, 10).map((m, i) => ({
+  id: `rating-${m.id}`,
   movieId: m.id,
   movieTitle: m.title,
   averageRating: 3.5 + Math.random() * 1.5,

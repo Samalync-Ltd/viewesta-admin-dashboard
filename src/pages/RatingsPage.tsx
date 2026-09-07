@@ -75,7 +75,7 @@ export function RatingsPage() {
               <tbody>
                 {items.map((r) => (
                   <tr
-                    key={r.movieId}
+                    key={r.id}
                     className="border-b border-slate-100 dark:border-slate-700"
                   >
                     <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">

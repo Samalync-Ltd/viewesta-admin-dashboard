@@ -63,10 +63,10 @@ export const seedGenres: Genre[] = [
 ];
 
 export const seedCategories: Category[] = [
-  { id: "c1", name: "Featured", slug: "featured", featured: true, movieIds: ["m1", "m2", "m3"] },
-  { id: "c2", name: "New Releases", slug: "new-releases", featured: true, movieIds: ["m4", "m5", "m6"] },
-  { id: "c3", name: "Award Winners", slug: "award-winners", featured: false, movieIds: ["m1", "m7"] },
-  { id: "c4", name: "Indie Picks", slug: "indie-picks", featured: true, movieIds: ["m8", "m9"] },
+  { id: "c1", name: "Featured", slug: "featured", featured: true, movie_count: 3 },
+  { id: "c2", name: "New Releases", slug: "new-releases", featured: true, movie_count: 3 },
+  { id: "c3", name: "Award Winners", slug: "award-winners", featured: false, movie_count: 2 },
+  { id: "c4", name: "Indie Picks", slug: "indie-picks", featured: true, movie_count: 2 },
 ];
 
 export const seedFilmmakers: Filmmaker[] = [

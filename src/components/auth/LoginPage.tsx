@@ -2,7 +2,20 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { Film } from "lucide-react";
-import { isAuthError } from "../../api/client";
+import axios from "axios";
+
+/** What to tell the admin when sign-in fails. The API answers bad credentials with 401 "Invalid credentials". */
+function loginErrorMessage(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const status = err.response?.status;
+    if (!err.response) return "Can't reach the server. Check your connection and try again.";
+    if (status === 401 || status === 400) return "Incorrect username or password.";
+    if (status === 429) return "Too many sign-in attempts. Wait a moment and try again.";
+    if (status && status >= 500) return "The server had a problem. Please try again in a moment.";
+    return (err.response?.data as { message?: string })?.message || "Sign-in failed. Please try again.";
+  }
+  return (err as Error)?.message || "Sign-in failed. Please try again.";
+}
 
 export function LoginPage() {
   const [identifier, setIdentifier] = useState("");
@@ -11,7 +24,7 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, notice } = useAuth();
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? "/";
 
@@ -38,11 +51,7 @@ export function LoginPage() {
       });
       navigate(from, { replace: true });
     } catch (err) {
-      setError(
-        isAuthError(err)
-          ? "Session expired. Please sign in again."
-          : (err as Error)?.message ?? "Login failed"
-      );
+      setError(loginErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -69,7 +78,7 @@ export function LoginPage() {
               id="identifier"
               type="text"
               value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
+              onChange={(e) => { setIdentifier(e.target.value); setError(null); }}
               required
               autoComplete="username"
               className="input-field"
@@ -84,15 +93,15 @@ export function LoginPage() {
               id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => { setPassword(e.target.value); setError(null); }}
               required
               autoComplete="current-password"
               className="input-field"
               placeholder="••••••••"
             />
           </div>
-          {error && (
-            <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>
+          {(error || notice) && (
+            <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error || notice}</p>
           )}
           <button
             type="submit"

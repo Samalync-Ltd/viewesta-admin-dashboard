@@ -1,5 +1,7 @@
 import { api, setStoredToken, setStoredRefreshToken } from "./client";
-import type { LoginPayload } from "../types/auth";
+import type { AdminRole, LoginPayload } from "../types/auth";
+
+const ADMIN_ROLES: AdminRole[] = ["super_admin", "content_admin", "support"];
 
 export const authApi = {
   login: async (payload: LoginPayload): Promise<any> => {
@@ -22,11 +24,16 @@ export const authApi = {
   me: async () => {
     const { data } = await api.get("/auth/me");
     const user = data?.user || data?.data?.user || data?.data || data;
-    if (user && !user.role) {
-      user.role = "super_admin"; // Default to super_admin so they can access the dashboard
-    }
-    if (user && !user.name) {
-      user.name = user.identifier || user.email || "Admin";
+    if (!user) return user;
+    // Only admin accounts may use the dashboard. users.user_type is
+    // 'viewer' | 'filmmaker' | 'admin'; the API has no finer admin role yet,
+    // so an admin account gets full (super_admin) access. Viewers and
+    // filmmakers used to be given super_admin here as well.
+    const hasAdminRole = ADMIN_ROLES.includes(user.role);
+    user.isAdmin = hasAdminRole || String(user.user_type ?? "").toLowerCase() === "admin";
+    if (!hasAdminRole) user.role = user.isAdmin ? "super_admin" : undefined;
+    if (!user.name) {
+      user.name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.identifier || user.email || "Admin";
     }
     return user;
   },

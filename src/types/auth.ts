@@ -6,6 +6,8 @@ export interface AdminUser {
   name: string;
   role: AdminRole;
   avatarUrl?: string;
+  /** Set by authApi.me: true only for accounts allowed into the dashboard. */
+  isAdmin?: boolean;
 }
 
 export interface LoginPayload {

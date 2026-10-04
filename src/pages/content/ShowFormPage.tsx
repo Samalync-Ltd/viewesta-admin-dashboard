@@ -7,6 +7,7 @@ import { toast } from "../../components/ui/Toast";
 import { CONTENT_STATUSES, STATUS_LABELS } from "../../lib/contentStatus";
 import { AGE_RATINGS } from "../../lib/contentOptions";
 import type { Category } from "../../types/models";
+import { ShowEpisodesPanel } from "./ShowEpisodesPanel";
 
 /**
  * Edit an existing show — PUT /shows/:id.
@@ -195,7 +196,7 @@ export function ShowFormPage() {
           Edit Show: {form.title || "…"}
         </h1>
         <p className="mt-1 text-slate-600 dark:text-slate-400">
-          Seasons and episodes are managed separately from this screen.
+          Edit the show's details, and add episodes below.
         </p>
       </div>
 
@@ -445,6 +446,8 @@ export function ShowFormPage() {
           </button>
         </div>
       </form>
+
+      {id && <ShowEpisodesPanel showId={id} />}
     </div>
   );
 }

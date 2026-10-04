@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, CheckCheck, RefreshCw, Send, Trash2 } from "lucide-react";
+import { Bell, CheckCheck, ChevronRight, RefreshCw, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   deleteNotification,
   formatNotificationTime,
@@ -9,22 +10,20 @@ import {
   getRegisteredDevices,
   markAllRead,
   markNotificationRead,
-  notificationsApi,
   registerPushNotifications,
   type AdminNotification,
 } from "../api/notifications";
 import { toast } from "../components/ui/Toast";
+import { resolveNotificationRoute } from "../lib/notificationRoute";
 import { useNotification } from "../contexts/NotificationContext";
 
 const PAGE_LIMIT = 20;
 
 export function NotificationsPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { pendingNotification, clearPendingNotification, refreshUnreadCount } =
     useNotification();
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [target, setTarget] = useState<"all" | "subscribers" | "specific">("all");
   const [pushStatus, setPushStatus] = useState<"idle" | "enabled" | "blocked" | "unsupported">(
     () => {
       if (!("Notification" in window) || !("serviceWorker" in navigator)) return "unsupported";
@@ -58,17 +57,6 @@ export function NotificationsPage() {
     void queryClient.invalidateQueries({ queryKey: ["notification-inbox"] });
     clearPendingNotification();
   }, [clearPendingNotification, pendingNotification, queryClient]);
-
-  const sendMutation = useMutation({
-    mutationFn: () => notificationsApi.send({ title, body, target }),
-    onSuccess: () => {
-      setTitle("");
-      setBody("");
-      toast("Notification sent", "success");
-      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-    },
-    onError: (err: Error) => toast(err.message ?? "Send failed", "error"),
-  });
 
   const enablePushMutation = useMutation({
     mutationFn: registerPushNotifications,
@@ -151,6 +139,13 @@ export function NotificationsPage() {
     },
   });
 
+  // Opening a notification takes the admin to the movie or show it is about,
+  // and marks it read.
+  const openNotification = (item: AdminNotification, route: string) => {
+    if (!item.is_read) markReadMutation.mutate(item.id);
+    navigate(route);
+  };
+
   const inbox = inboxQuery.data?.notifications ?? [];
   const unreadCount = inboxQuery.data?.unreadCount ?? 0;
   const devices = devicesQuery.data ?? [];
@@ -169,7 +164,7 @@ export function NotificationsPage() {
             Notifications
           </h1>
           <p className="mt-1 text-slate-600 dark:text-slate-400">
-            Send broadcasts and receive admin alerts on this device
+            Admin alerts, such as content waiting for review
           </p>
         </div>
         <button
@@ -237,7 +232,10 @@ export function NotificationsPage() {
               {inbox.map((item) => (
                 <li key={item.id} className="flex gap-3 px-4 py-4">
                   <span className={`mt-2 h-2.5 w-2.5 rounded-full ${item.is_read ? "bg-slate-300 dark:bg-slate-600" : "bg-primary-500"}`} />
-                  <div className="min-w-0 flex-1">
+                  {(() => {
+                    const route = resolveNotificationRoute(item);
+                    const content = (
+                      <>
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium text-slate-900 dark:text-slate-100">
                         {item.title || "New notification"}
@@ -254,7 +252,22 @@ export function NotificationsPage() {
                     <p className="mt-2 text-xs text-slate-500">
                       {formatNotificationTime(item.created_at ?? item.createdAt)}
                     </p>
-                  </div>
+                      </>
+                    );
+                    return route ? (
+                      <button
+                        type="button"
+                        onClick={() => openNotification(item, route)}
+                        className="flex min-w-0 flex-1 items-start gap-2 rounded-lg text-left hover:bg-slate-50 dark:hover:bg-slate-700/40"
+                        aria-label={`Open ${item.title || "notification"}`}
+                      >
+                        <span className="min-w-0 flex-1">{content}</span>
+                        <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                      </button>
+                    ) : (
+                      <div className="min-w-0 flex-1">{content}</div>
+                    );
+                  })()}
                   <div className="flex items-start gap-1">
                     {!item.is_read && (
                       <button
@@ -303,55 +316,6 @@ export function NotificationsPage() {
             </p>
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-            <div className="mb-4 flex items-center gap-2">
-              <Send className="h-5 w-5 text-primary-600" />
-              <h2 className="font-semibold text-slate-900 dark:text-slate-100">
-                New broadcast
-              </h2>
-            </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (title.trim() && body.trim()) sendMutation.mutate();
-              }}
-              className="space-y-4"
-            >
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Title"
-                required
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-              />
-              <textarea
-                rows={3}
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder="Message"
-                required
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-              />
-              <select
-                value={target}
-                onChange={(e) => setTarget(e.target.value as "all" | "subscribers" | "specific")}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-              >
-                <option value="all">All users</option>
-                <option value="subscribers">Subscribers only</option>
-                <option value="specific">Specific users</option>
-              </select>
-              <button
-                type="submit"
-                disabled={!title.trim() || !body.trim() || sendMutation.isPending}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 font-medium text-white hover:bg-primary-700 disabled:opacity-50"
-              >
-                <Send className="h-4 w-4" />
-                {sendMutation.isPending ? "Sending..." : "Send"}
-              </button>
-            </form>
-          </section>
         </aside>
       </div>
     </div>

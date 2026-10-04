@@ -142,6 +142,20 @@ function toQuery(params?: ListParams) {
   return { query, page, limit };
 }
 
+export interface ShowSeason {
+  id: string;
+  season_number: number;
+  title?: string;
+}
+
+export interface ShowEpisode {
+  id: string;
+  episode_number: number | string;
+  title: string;
+  duration_minutes?: number | string;
+  video_files?: unknown[];
+}
+
 export const contentApi = {
   movies: {
     /**
@@ -217,7 +231,15 @@ export const contentApi = {
       api.put(`/shows/${id}`, buildContentFormData(fields, files)).then((r) => unwrapShow(r.data)),
     delete: (id: string): Promise<void> => api.delete(`/shows/${id}`).then(() => undefined),
 
-    /** POST /shows/:showId/seasons */
+    /** GET /shows/:showId/seasons → { data: { seasons } } */
+  seasons: (showId: string) =>
+    api.get(`/shows/${showId}/seasons`).then((r) => (r.data?.data?.seasons ?? r.data?.data ?? []) as ShowSeason[]),
+
+  /** GET /seasons/:seasonId/episodes → { data: { episodes } } */
+  episodes: (seasonId: string) =>
+    api.get(`/seasons/${seasonId}/episodes`).then((r) => (r.data?.data?.episodes ?? r.data?.data ?? []) as ShowEpisode[]),
+
+  /** POST /shows/:showId/seasons */
     createSeason: (showId: string, body: { season_number: number; title?: string; description?: string; release_year?: number }) =>
       api.post(`/shows/${showId}/seasons`, body).then((r) => r.data?.data?.season ?? r.data?.data ?? r.data),
 

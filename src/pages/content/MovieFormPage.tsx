@@ -9,17 +9,16 @@ import { CONTENT_STATUSES, STATUS_LABELS } from "../../lib/contentStatus";
 import { AGE_RATINGS, VIDEO_QUALITIES } from "../../lib/contentOptions";
 import type { Category } from "../../types/models";
 
-/** Per-quality TVOD price row held in form state. */
-interface PriceRow {
-  enabled: boolean;
+/**
+ * One pay-per-view price per film. It applies to every quality, so on save the
+ * same price is written to each quality tier of /movies/:id/pricing.
+ */
+interface PriceState {
   isFree: boolean;
   price: string;
 }
 
-const emptyPricing = (): Record<string, PriceRow> =>
-  Object.fromEntries(
-    VIDEO_QUALITIES.map((q) => [q, { enabled: false, isFree: false, price: "" }])
-  );
+const emptyPricing = (): PriceState => ({ isFree: false, price: "" });
 
 /**
  * ── Why this form only exposes these fields ──────────────────────────────────
@@ -178,7 +177,7 @@ export function MovieFormPage() {
   const [backdropFile, setBackdropFile] = useState<File | null>(null);
   const [trailerFile, setTrailerFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [pricing, setPricing] = useState<Record<string, PriceRow>>(emptyPricing);
+  const [pricing, setPricing] = useState<PriceState>(emptyPricing);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState("");
@@ -213,16 +212,17 @@ export function MovieFormPage() {
 
   useEffect(() => {
     if (!existingPricing) return;
-    const next = emptyPricing();
-    for (const row of existingPricing) {
-      if (!next[row.quality]) continue;
-      next[row.quality] = {
-        enabled: true,
-        isFree: Boolean(row.is_free),
-        price: row.is_free ? "" : String(Number(row.price ?? 0)),
-      };
+    if (existingPricing.length === 0) {
+      setPricing(emptyPricing());
+      return;
     }
-    setPricing(next);
+    // Older films may carry a different price per quality; show the highest.
+    const paid = existingPricing.filter((r) => !r.is_free);
+    setPricing(
+      paid.length === 0
+        ? { isFree: true, price: "" }
+        : { isFree: false, price: String(Math.max(...paid.map((r) => Number(r.price ?? 0)))) }
+    );
   }, [existingPricing]);
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
@@ -273,12 +273,9 @@ export function MovieFormPage() {
       return;
     }
 
-    // The pricing controller rejects a non-free tier without a valid price.
-    const badTier = VIDEO_QUALITIES.find(
-      (q) => pricing[q].enabled && !pricing[q].isFree && !(Number(pricing[q].price) >= 0 && pricing[q].price !== "")
-    );
-    if (badTier) {
-      toast(`Enter a price for ${badTier}, or mark that tier free.`, "error");
+    // Empty price = no pay-per-view for this film; otherwise it must be a valid number.
+    if (!pricing.isFree && pricing.price !== "" && !(Number(pricing.price) >= 0)) {
+      toast("Enter a valid pay-per-view price, or leave it empty.", "error");
       return;
     }
 
@@ -339,18 +336,18 @@ export function MovieFormPage() {
       if (movieId) {
         setUploadStatus("Saving pricing...");
         const previous = new Set((existingPricing ?? []).map((r) => r.quality));
+        const hasPrice = pricing.isFree || pricing.price !== "";
 
         for (const quality of VIDEO_QUALITIES) {
-          const row = pricing[quality];
-          if (row.enabled) {
+          if (hasPrice) {
             // POST upserts via ON CONFLICT, so it covers create and update.
             await contentApi.pricing.set(movieId, {
               quality,
-              price: row.isFree ? 0 : Number(row.price) || 0,
-              is_free: row.isFree,
+              price: pricing.isFree ? 0 : Number(pricing.price) || 0,
+              is_free: pricing.isFree,
             });
           } else if (previous.has(quality)) {
-            // Unticked a tier that used to have a price -> remove the row.
+            // Price cleared -> remove the tier.
             await contentApi.pricing.remove(movieId, quality);
           }
         }
@@ -819,56 +816,33 @@ export function MovieFormPage() {
             Saved via /movies/:movieId/pricing, one row per quality tier.
             Not part of the movie record itself.                            */}
         <section className="space-y-3 border-t border-slate-200 pt-6 dark:border-slate-700">
-          <h2 className={sectionCls}>TVOD Pricing</h2>
+          <h2 className={sectionCls}>Pay-per-view price</h2>
           <p className={hintCls}>
-            Price is set per video quality. Untick a tier to remove its price entirely.
-            {isNew && " Pricing is applied right after the movie is created."}
+            One price per film, applied to every quality (480p, 720p, 1080p). Leave it empty
+            if this film is not sold pay-per-view.
+            {isNew && " The price is saved right after the movie is created."}
           </p>
-          <div className="space-y-2">
-            {VIDEO_QUALITIES.map((quality) => {
-              const row = pricing[quality];
-              return (
-                <div
-                  key={quality}
-                  className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700"
-                >
-                  <label className="flex w-24 cursor-pointer items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={row.enabled}
-                      onChange={(e) => setPrice(setPricing, quality, { enabled: e.target.checked })}
-                      className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      {quality}
-                    </span>
-                  </label>
-
-                  <label className="flex cursor-pointer items-center gap-2">
-                    <input
-                      type="checkbox"
-                      disabled={!row.enabled}
-                      checked={row.isFree}
-                      onChange={(e) => setPrice(setPricing, quality, { isFree: e.target.checked })}
-                      className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 disabled:opacity-40"
-                    />
-                    <span className="text-sm text-slate-600 dark:text-slate-400">Free</span>
-                  </label>
-
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    placeholder="Price"
-                    disabled={!row.enabled || row.isFree}
-                    value={row.isFree ? "" : row.price}
-                    onChange={(e) => setPrice(setPricing, quality, { price: e.target.value })}
-                    className={`${inputCls} w-32 disabled:opacity-40`}
-                    aria-label={`${quality} price`}
-                  />
-                </div>
-              );
-            })}
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              placeholder="Price"
+              disabled={pricing.isFree}
+              value={pricing.isFree ? "" : pricing.price}
+              onChange={(e) => setPricing((p) => ({ ...p, price: e.target.value }))}
+              className={`${inputCls} w-40 disabled:opacity-40`}
+              aria-label="Pay-per-view price"
+            />
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={pricing.isFree}
+                onChange={(e) => setPricing((p) => ({ ...p, isFree: e.target.checked }))}
+                className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span className="text-sm text-slate-600 dark:text-slate-400">Free</span>
+            </label>
           </div>
         </section>
 
@@ -907,14 +881,6 @@ export function MovieFormPage() {
       </form>
     </div>
   );
-}
-
-function setPrice(
-  setPricing: React.Dispatch<React.SetStateAction<Record<string, PriceRow>>>,
-  quality: string,
-  patch: Partial<PriceRow>
-) {
-  setPricing((p) => ({ ...p, [quality]: { ...p[quality], ...patch } }));
 }
 
 function updateCast(

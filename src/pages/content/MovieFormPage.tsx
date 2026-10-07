@@ -337,18 +337,24 @@ export function MovieFormPage() {
         setUploadStatus("Saving pricing...");
         const previous = new Set((existingPricing ?? []).map((r) => r.quality));
         const hasPrice = pricing.isFree || pricing.price !== "";
+        const body = { price: pricing.isFree ? 0 : Number(pricing.price) || 0, is_free: pricing.isFree };
 
-        for (const quality of VIDEO_QUALITIES) {
-          if (hasPrice) {
-            // POST upserts via ON CONFLICT, so it covers create and update.
-            await contentApi.pricing.set(movieId, {
-              quality,
-              price: pricing.isFree ? 0 : Number(pricing.price) || 0,
-              is_free: pricing.isFree,
-            });
-          } else if (previous.has(quality)) {
-            // Price cleared -> remove the tier.
-            await contentApi.pricing.remove(movieId, quality);
+        if (hasPrice) {
+          try {
+            // One price for the whole film (the backend applies it to every quality).
+            await contentApi.pricing.setSingle(movieId, body);
+          } catch (err: any) {
+            // A backend that still wants one row per quality rejects the request
+            // without `quality`; write the same price to each tier instead.
+            if (![400, 422].includes(err?.response?.status)) throw err;
+            for (const quality of VIDEO_QUALITIES) {
+              await contentApi.pricing.set(movieId, { quality, ...body });
+            }
+          }
+        } else {
+          // Price cleared -> remove what was there.
+          for (const quality of VIDEO_QUALITIES) {
+            if (previous.has(quality)) await contentApi.pricing.remove(movieId, quality);
           }
         }
         await queryClient.invalidateQueries({

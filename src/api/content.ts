@@ -271,8 +271,17 @@ export const contentApi = {
     list: (movieId: string): Promise<MoviePricingEntry[]> =>
       api.get(`/movies/${movieId}/pricing`).then((r) => {
         const body = (r.data as any)?.data ?? r.data;
-        return Array.isArray(body?.pricing) ? body.pricing : [];
+        if (Array.isArray(body?.pricing)) return body.pricing;
+        // Current shape: one price per film for every quality —
+        // { price, is_free, unlocks_all_qualities, pricing: { price: "1.00", ... } | null }.
+        const row = body?.pricing && typeof body.pricing === "object" ? body.pricing : null;
+        const price = body?.price ?? row?.price;
+        if (price === undefined || price === null) return [];
+        return [{ quality: "all", price, is_free: Boolean(body?.is_free ?? row?.is_free) }];
       }),
+    /** Set the film's single pay-per-view price (applies to every quality). */
+    setSingle: (movieId: string, body: { price: number; is_free: boolean }) =>
+      api.post(`/movies/${movieId}/pricing`, body).then((r) => r.data),
     /** Upsert the price for one quality tier. */
     set: (movieId: string, body: { quality: string; price?: number; is_free?: boolean }) =>
       api.post(`/movies/${movieId}/pricing`, body).then((r) => r.data),

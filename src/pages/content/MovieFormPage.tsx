@@ -357,6 +357,21 @@ export function MovieFormPage() {
             if (previous.has(quality)) await contentApi.pricing.remove(movieId, quality);
           }
         }
+
+        // Read it back: the save only counts if the backend now returns this price.
+        if (hasPrice) {
+          const rows = await contentApi.pricing.list(movieId);
+          const stored = rows.find((r) => !r.is_free);
+          const ok = pricing.isFree
+            ? rows.some((r) => r.is_free)
+            : Boolean(stored) && Math.abs(Number(stored!.price) - body.price) < 0.005;
+          if (!ok) {
+            throw new Error(
+              `The server accepted the price but did not store it (GET /movies/${movieId}/pricing returns ` +
+                `${rows.length ? JSON.stringify(rows.map((r) => r.price)) : "no price"}). Please report this to the backend team.`
+            );
+          }
+        }
         await queryClient.invalidateQueries({
           queryKey: ["content", "movies", movieId, "pricing"],
         });

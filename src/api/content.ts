@@ -289,6 +289,27 @@ export const contentApi = {
       api.delete(`/movies/${movieId}/pricing/${quality}`).then(() => undefined),
   },
 
+  /**
+   * A series has ONE pay-per-view price (unlocks every episode for 120 hours).
+   *   GET    /series/:id/pricing -> { data: { price: number|null, is_free, ... } }   (public)
+   *   PUT    /series/:id/pricing -> { price: n } (n > 0) or { is_free: true }       (owner / admin)
+   *   DELETE /series/:id/pricing -> take the series off sale
+   */
+  seriesPricing: {
+    get: (id: string): Promise<{ price: number | null; isFree: boolean }> =>
+      api.get(`/series/${id}/pricing`).then((r) => {
+        const d = (r.data as any)?.data ?? r.data ?? {};
+        const price = d.price ?? d.pricing?.price;
+        return {
+          price: price === null || price === undefined ? null : Number(price),
+          isFree: Boolean(d.is_free ?? d.pricing?.is_free),
+        };
+      }),
+    set: (id: string, body: { price?: number; is_free?: boolean }) =>
+      api.put(`/series/${id}/pricing`, body).then((r) => r.data),
+    remove: (id: string): Promise<void> => api.delete(`/series/${id}/pricing`).then(() => undefined),
+  },
+
   categories: {
     /** GET /categories -> `{ success, data: { categories: [...] } }` */
     list: (): Promise<Category[]> =>

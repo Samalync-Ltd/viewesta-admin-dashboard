@@ -8,10 +8,6 @@
  * object, the notification type, or the address. Returns null when no id is found.
  */
 type Bag = Record<string, unknown>;
-interface NotificationLike extends Bag {
-  data?: unknown;
-  action_url?: string;
-}
 
 const present = (v: unknown): v is string | number =>
   v !== undefined && v !== null && typeof v !== "object" && String(v).trim() !== "";
@@ -58,8 +54,10 @@ function fromAddress(raw: unknown): string | null {
   return /^\/content\/(movies|shows)\/[^/]+\/?$/.test(path) ? path : null;
 }
 
-export function resolveNotificationRoute(notification: NotificationLike | null | undefined): string | null {
-  if (!notification || typeof notification !== "object") return null;
+// Accepts any notification object (the API's own type has no index signature).
+export function resolveNotificationRoute(input: object | null | undefined): string | null {
+  if (!input || typeof input !== "object") return null;
+  const notification = input as Bag;
 
   // Everything that can carry ids; `data` is checked first.
   const sources: Bag[] = [

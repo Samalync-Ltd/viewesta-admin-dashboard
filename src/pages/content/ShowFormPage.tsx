@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { ImageWithFallback } from "../../components/ui/ImageWithFallback";
 import { useNavigate, useParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { contentApi, type ContentMediaFiles } from "../../api/content";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { contentApi, isMissingRoute, type ContentMediaFiles } from "../../api/content";
 import { toast } from "../../components/ui/Toast";
+import { PendingReviewBanner } from "../../components/ui/PendingReviewBanner";
 import { CONTENT_STATUSES, STATUS_LABELS } from "../../lib/contentStatus";
 import { AGE_RATINGS } from "../../lib/contentOptions";
 import type { Category } from "../../types/models";
@@ -89,6 +90,30 @@ function normaliseShow(raw: any): ShowEditState {
   };
 }
 
+/** The PUT /shows/:id body for a show, as the Save button sends it. */
+function buildShowFields(state: ShowEditState, status: string): Record<string, unknown> {
+  const cast = state.cast
+    .filter((c) => c.name.trim() && c.role.trim())
+    .map((c) => ({ name: c.name.trim(), role: c.role.trim(), character: c.character.trim() }));
+
+  const fields: Record<string, unknown> = {
+    title: state.title.trim(),
+    status,
+  };
+  if (state.description.trim()) fields.description = state.description.trim();
+  if (state.directorName.trim()) fields.director_name = state.directorName.trim();
+  if (state.producerName.trim()) fields.producer_name = state.producerName.trim();
+  if ((AGE_RATINGS as readonly string[]).includes(state.ageRating)) fields.age_rating = state.ageRating;
+  if (state.categoryId) fields.category_id = state.categoryId;
+  if (state.durationMinutes > 0) fields.duration_minutes = state.durationMinutes;
+  if (state.releaseYear >= 1888 && state.releaseYear <= 2100) fields.release_year = state.releaseYear;
+  // Joi requires a non-empty array when `cast` is present.
+  if (cast.length > 0) fields.cast = cast;
+  return fields;
+}
+
+type Decision = "approve" | "reject";
+
 export function ShowFormPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -120,6 +145,41 @@ export function ShowFormPage() {
 
   const set = (patch: Partial<ShowEditState>) => setForm((f) => ({ ...f, ...patch }));
 
+  // ── Approve / Reject ────────────────────────────────────────────
+  // The proper moderation route notifies the filmmaker, like for movies. The
+  // backend has not had it for shows (see contentApi.shows.approve), so when
+  // it answers "no such route" the status is set with the same update the
+  // Save button uses, built from the show as loaded (not from unsaved edits).
+  // That works today but does not notify the filmmaker, and says so.
+  const moderation = useMutation({
+    mutationFn: async ({ decision, reason }: { decision: Decision; reason?: string }) => {
+      try {
+        if (decision === "approve") await contentApi.shows.approve(id!);
+        else await contentApi.shows.reject(id!, reason ?? "");
+        return { notified: true };
+      } catch (err) {
+        if (!isMissingRoute(err) || !rawShow) throw err;
+        const status = decision === "approve" ? "approved" : "rejected";
+        await contentApi.shows.update(id!, buildShowFields(normaliseShow(rawShow), status), {});
+        return { notified: false };
+      }
+    },
+    onSuccess: ({ notified }, { decision }) => {
+      const done = decision === "approve" ? "Show approved" : "Show rejected";
+      toast(
+        notified
+          ? `${done} — the filmmaker has been notified.`
+          : `${done}. The filmmaker was not notified: the backend has no show moderation route yet.`,
+        notified ? "success" : "info",
+      );
+      queryClient.invalidateQueries({ queryKey: ["content", "shows"] });
+      navigate("/content/shows");
+    },
+    onError: (err: unknown, { decision }) =>
+      toast(extractError(err, decision === "approve" ? "Approval failed" : "Rejection failed"), "error"),
+  });
+  const pendingDecision = moderation.isPending ? moderation.variables?.decision : undefined;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
@@ -129,23 +189,7 @@ export function ShowFormPage() {
       return;
     }
 
-    const cast = form.cast
-      .filter((c) => c.name.trim() && c.role.trim())
-      .map((c) => ({ name: c.name.trim(), role: c.role.trim(), character: c.character.trim() }));
-
-    const fields: Record<string, unknown> = {
-      title: form.title.trim(),
-      status: form.status,
-    };
-    if (form.description.trim()) fields.description = form.description.trim();
-    if (form.directorName.trim()) fields.director_name = form.directorName.trim();
-    if (form.producerName.trim()) fields.producer_name = form.producerName.trim();
-    if (AGE_RATINGS.includes(form.ageRating as any)) fields.age_rating = form.ageRating;
-    if (form.categoryId) fields.category_id = form.categoryId;
-    if (form.durationMinutes > 0) fields.duration_minutes = form.durationMinutes;
-    if (form.releaseYear >= 1888 && form.releaseYear <= 2100) fields.release_year = form.releaseYear;
-    // Joi requires a non-empty array when `cast` is present.
-    if (cast.length > 0) fields.cast = cast;
+    const fields = buildShowFields(form, form.status);
 
     const files: ContentMediaFiles = {
       poster: posterFile,
@@ -198,6 +242,17 @@ export function ShowFormPage() {
           Seasons and episodes are managed separately from this screen.
         </p>
       </div>
+
+      {/* ── Pending Review Banner ───────────────────────────────────────── */}
+      {form.status === "pending" && rawShow?.status === "pending" && (
+        <PendingReviewBanner
+          kind="show"
+          onApprove={() => moderation.mutate({ decision: "approve" })}
+          onReject={(reason) => moderation.mutate({ decision: "reject", reason })}
+          approving={pendingDecision === "approve"}
+          rejecting={pendingDecision === "reject"}
+        />
+      )}
 
       <form
         onSubmit={handleSubmit}

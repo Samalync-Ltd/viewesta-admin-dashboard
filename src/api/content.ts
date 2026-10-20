@@ -216,6 +216,23 @@ export const contentApi = {
     update: (id: string, fields: Record<string, unknown>, files?: ContentMediaFiles) =>
       api.put(`/shows/${id}`, buildContentFormData(fields, files)).then((r) => unwrapShow(r.data)),
     delete: (id: string): Promise<void> => api.delete(`/shows/${id}`).then(() => undefined),
+    /**
+     * Approve / reject a pending show through the moderation routes, the
+     * counterpart of `movies.approve` / `movies.reject` (those notify the
+     * filmmaker).
+     *
+     * NOT CONFIRMED TO EXIST. 91f9a2e added these and 43f7a77 reverted them:
+     * with a real admin token on 2026-08-27, POST /shows/admin/:id/approve
+     * returned 404 "Not Found - /api/v1/..." while the movie route returned
+     * 200. An unauthenticated probe cannot prove a route present on this API
+     * (auth answers 401 before routing). So callers must handle a 404 from
+     * the global not-found handler — see `isMissingRoute` — and fall back to
+     * setting the status with `update`, which does not notify the filmmaker.
+     */
+    approve: (id: string): Promise<void> =>
+      api.post(`/shows/admin/${id}/approve`).then(() => undefined),
+    reject: (id: string, reason: string): Promise<void> =>
+      api.post(`/shows/admin/${id}/reject`, { reason }).then(() => undefined),
 
     /** POST /shows/:showId/seasons */
     createSeason: (showId: string, body: { season_number: number; title?: string; description?: string; release_year?: number }) =>
@@ -273,3 +290,15 @@ export const contentApi = {
     delete: (id: string): Promise<void> => api.delete(`/categories/${id}`).then(() => undefined),
   },
 };
+
+/**
+ * True when the request hit no route at all (the API's global not-found
+ * handler: 404 with "Not Found - /api/v1/..."), as opposed to a real route
+ * answering 404 for a missing record.
+ */
+export function isMissingRoute(err: unknown): boolean {
+  const response = (err as { response?: { status?: number; data?: { message?: string; error?: { message?: string } } } })
+    ?.response;
+  const message = response?.data?.message ?? response?.data?.error?.message ?? "";
+  return response?.status === 404 && /^Not Found - \//.test(String(message));
+}

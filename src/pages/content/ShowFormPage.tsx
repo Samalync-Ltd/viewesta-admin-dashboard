@@ -8,6 +8,7 @@ import { PendingReviewBanner } from "../../components/ui/PendingReviewBanner";
 import { CONTENT_STATUSES, STATUS_LABELS } from "../../lib/contentStatus";
 import { AGE_RATINGS } from "../../lib/contentOptions";
 import type { Category } from "../../types/models";
+import { ShowEpisodesPanel } from "./ShowEpisodesPanel";
 
 /**
  * Edit an existing show — PUT /shows/:id.
@@ -125,6 +126,9 @@ export function ShowFormPage() {
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [trailerFile, setTrailerFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // One pay-per-view price for the whole series (every episode, 120 hours).
+  const [price, setPrice] = useState("");
+  const [isFree, setIsFree] = useState(false);
 
   const { data: categories } = useQuery({
     queryKey: ["content", "categories"],
@@ -142,6 +146,18 @@ export function ShowFormPage() {
   useEffect(() => {
     if (rawShow) setForm(normaliseShow(rawShow));
   }, [rawShow]);
+
+  const { data: seriesPrice } = useQuery({
+    queryKey: ["content", "shows", id, "pricing"],
+    queryFn: () => contentApi.seriesPricing.get(id!),
+    enabled: Boolean(id),
+    staleTime: 0,
+  });
+  useEffect(() => {
+    if (!seriesPrice) return;
+    setIsFree(seriesPrice.isFree);
+    setPrice(seriesPrice.price !== null && !seriesPrice.isFree ? String(seriesPrice.price) : "");
+  }, [seriesPrice]);
 
   const set = (patch: Partial<ShowEditState>) => setForm((f) => ({ ...f, ...patch }));
 
@@ -189,6 +205,11 @@ export function ShowFormPage() {
       return;
     }
 
+    if (!isFree && price !== "" && !(Number(price) > 0)) {
+      toast("Enter a pay-per-view price above 0, tick Free, or leave it empty.", "error");
+      return;
+    }
+
     const fields = buildShowFields(form, form.status);
 
     const files: ContentMediaFiles = {
@@ -202,6 +223,24 @@ export function ShowFormPage() {
       setIsSaving(true);
       const updated = await contentApi.shows.update(id, fields, files);
       if (updated?.id) setForm(normaliseShow(updated));
+
+      // Pay-per-view price: save, then read it back so "saved" is only shown when it really is.
+      const hadPrice = seriesPrice?.price !== null && seriesPrice?.price !== undefined;
+      if (isFree || price !== "") {
+        await contentApi.seriesPricing.set(id, isFree ? { is_free: true } : { price: Number(price) });
+        const stored = await contentApi.seriesPricing.get(id);
+        const ok = isFree ? stored.isFree : stored.price !== null && Math.abs(stored.price - Number(price)) < 0.005;
+        if (!ok) {
+          throw new Error(
+            `The server accepted the price but did not store it (GET /series/${id}/pricing returns ` +
+              `${stored.price === null ? "no price" : stored.price}). Please report this to the backend team.`
+          );
+        }
+        await queryClient.invalidateQueries({ queryKey: ["content", "shows", id, "pricing"] });
+      } else if (hadPrice) {
+        await contentApi.seriesPricing.remove(id);
+        await queryClient.invalidateQueries({ queryKey: ["content", "shows", id, "pricing"] });
+      }
       await queryClient.invalidateQueries({ queryKey: ["content", "shows"] });
       toast("Show updated successfully", "success");
       navigate("/content/shows");
@@ -239,7 +278,7 @@ export function ShowFormPage() {
           Edit Show: {form.title || "…"}
         </h1>
         <p className="mt-1 text-slate-600 dark:text-slate-400">
-          Seasons and episodes are managed separately from this screen.
+          Edit the show's details, and add episodes below.
         </p>
       </div>
 
@@ -450,6 +489,36 @@ export function ShowFormPage() {
           )}
         </section>
 
+        <section className="space-y-3 border-t border-slate-200 pt-6 dark:border-slate-700">
+          <h2 className={sectionCls}>Pay-per-view price</h2>
+          <p className={hintCls}>
+            One price for the whole series: a purchase unlocks every episode for 120 hours (5 days).
+            Leave it empty if this series is not sold pay-per-view.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              placeholder="Price"
+              disabled={isFree}
+              value={isFree ? "" : price}
+              onChange={(e) => setPrice(e.target.value)}
+              className={`${inputCls} w-40 disabled:opacity-40`}
+              aria-label="Series pay-per-view price"
+            />
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={isFree}
+                onChange={(e) => setIsFree(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span className="text-sm text-slate-600 dark:text-slate-400">Free</span>
+            </label>
+          </div>
+        </section>
+
         <section className="space-y-4 border-t border-slate-200 pt-6 dark:border-slate-700">
           <h2 className={sectionCls}>Media</h2>
           <p className={hintCls}>Leave a field empty to keep the stored file.</p>
@@ -500,6 +569,8 @@ export function ShowFormPage() {
           </button>
         </div>
       </form>
+
+      {id && <ShowEpisodesPanel showId={id} />}
     </div>
   );
 }

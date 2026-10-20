@@ -142,6 +142,20 @@ function toQuery(params?: ListParams) {
   return { query, page, limit };
 }
 
+export interface ShowSeason {
+  id: string;
+  season_number: number;
+  title?: string;
+}
+
+export interface ShowEpisode {
+  id: string;
+  episode_number: number | string;
+  title: string;
+  duration_minutes?: number | string;
+  video_files?: unknown[];
+}
+
 export const contentApi = {
   movies: {
     /**
@@ -234,7 +248,15 @@ export const contentApi = {
     reject: (id: string, reason: string): Promise<void> =>
       api.post(`/shows/admin/${id}/reject`, { reason }).then(() => undefined),
 
-    /** POST /shows/:showId/seasons */
+    /** GET /shows/:showId/seasons → { data: { seasons } } */
+  seasons: (showId: string) =>
+    api.get(`/shows/${showId}/seasons`).then((r) => (r.data?.data?.seasons ?? r.data?.data ?? []) as ShowSeason[]),
+
+  /** GET /seasons/:seasonId/episodes → { data: { episodes } } */
+  episodes: (seasonId: string) =>
+    api.get(`/seasons/${seasonId}/episodes`).then((r) => (r.data?.data?.episodes ?? r.data?.data ?? []) as ShowEpisode[]),
+
+  /** POST /shows/:showId/seasons */
     createSeason: (showId: string, body: { season_number: number; title?: string; description?: string; release_year?: number }) =>
       api.post(`/shows/${showId}/seasons`, body).then((r) => r.data?.data?.season ?? r.data?.data ?? r.data),
 
@@ -266,13 +288,43 @@ export const contentApi = {
     list: (movieId: string): Promise<MoviePricingEntry[]> =>
       api.get(`/movies/${movieId}/pricing`).then((r) => {
         const body = (r.data as any)?.data ?? r.data;
-        return Array.isArray(body?.pricing) ? body.pricing : [];
+        if (Array.isArray(body?.pricing)) return body.pricing;
+        // Current shape: one price per film for every quality —
+        // { price, is_free, unlocks_all_qualities, pricing: { price: "1.00", ... } | null }.
+        const row = body?.pricing && typeof body.pricing === "object" ? body.pricing : null;
+        const price = body?.price ?? row?.price;
+        if (price === undefined || price === null) return [];
+        return [{ quality: "all", price, is_free: Boolean(body?.is_free ?? row?.is_free) }];
       }),
+    /** Set the film's single pay-per-view price (applies to every quality). */
+    setSingle: (movieId: string, body: { price: number; is_free: boolean }) =>
+      api.post(`/movies/${movieId}/pricing`, body).then((r) => r.data),
     /** Upsert the price for one quality tier. */
     set: (movieId: string, body: { quality: string; price?: number; is_free?: boolean }) =>
       api.post(`/movies/${movieId}/pricing`, body).then((r) => r.data),
     remove: (movieId: string, quality: string): Promise<void> =>
       api.delete(`/movies/${movieId}/pricing/${quality}`).then(() => undefined),
+  },
+
+  /**
+   * A series has ONE pay-per-view price (unlocks every episode for 120 hours).
+   *   GET    /series/:id/pricing -> { data: { price: number|null, is_free, ... } }   (public)
+   *   PUT    /series/:id/pricing -> { price: n } (n > 0) or { is_free: true }       (owner / admin)
+   *   DELETE /series/:id/pricing -> take the series off sale
+   */
+  seriesPricing: {
+    get: (id: string): Promise<{ price: number | null; isFree: boolean }> =>
+      api.get(`/series/${id}/pricing`).then((r) => {
+        const d = (r.data as any)?.data ?? r.data ?? {};
+        const price = d.price ?? d.pricing?.price;
+        return {
+          price: price === null || price === undefined ? null : Number(price),
+          isFree: Boolean(d.is_free ?? d.pricing?.is_free),
+        };
+      }),
+    set: (id: string, body: { price?: number; is_free?: boolean }) =>
+      api.put(`/series/${id}/pricing`, body).then((r) => r.data),
+    remove: (id: string): Promise<void> => api.delete(`/series/${id}/pricing`).then(() => undefined),
   },
 
   categories: {

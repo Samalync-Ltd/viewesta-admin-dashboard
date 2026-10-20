@@ -51,7 +51,8 @@ export interface Category {
   name: string;
   slug: string;
   featured: boolean;
-  movieIds: string[];
+  /** Number of movies in the category (GET /categories `movie_count`). */
+  movie_count?: number;
 }
 
 export interface Filmmaker {

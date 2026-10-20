@@ -79,7 +79,7 @@ export function CategoriesPage() {
                     <Star className="h-4 w-4 fill-amber-400 text-amber-500" />
                   )}
                   <span className="text-sm text-slate-500 dark:text-slate-400">
-                    {c.movieIds?.length ?? 0} movies
+                    {c.movie_count ?? 0} {c.movie_count === 1 ? "movie" : "movies"}
                   </span>
                 </div>
                 <div className="flex gap-2">

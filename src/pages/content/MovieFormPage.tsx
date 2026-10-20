@@ -4,6 +4,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { contentApi, type ContentMediaFiles } from "../../api/content";
 import { toast } from "../../components/ui/Toast";
 import { PendingReviewBanner } from "../../components/ui/PendingReviewBanner";
+import { filmmakersApi, filmmakerLabel } from "../../api/filmmakers";
 import { ImageWithFallback } from "../../components/ui/ImageWithFallback";
 import { CONTENT_STATUSES, STATUS_LABELS } from "../../lib/contentStatus";
 import { AGE_RATINGS, VIDEO_QUALITIES } from "../../lib/contentOptions";
@@ -41,6 +42,8 @@ const emptyPricing = (): PriceState => ({ isFree: false, price: "" });
  * That is why the pricing block below saves separately from the movie itself.
  */
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface FormState {
   title: string;
   description: string;
@@ -61,7 +64,7 @@ interface FormState {
   posterUrl: string;
   backdropUrl: string;
   trailerUrl: string;
-  /** Read-only: movies expose no writable filmmaker path (see note in the form). */
+  /** Chosen when creating a movie; read-only afterwards (see note in the form). */
   filmmakerId: string;
   filmmakerName: string;
 }
@@ -188,6 +191,15 @@ export function MovieFormPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Filmmakers are users with user_type='filmmaker' (no /filmmakers resource),
+  // the same list the show upload offers. Only needed when creating.
+  const { data: filmmakers, isError: filmmakersError } = useQuery({
+    queryKey: ["filmmakers", "options"],
+    queryFn: () => filmmakersApi.listOptions(),
+    enabled: isNew,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const { data: rawMovie, isLoading } = useQuery({
     queryKey: ["content", "movies", id],
     queryFn: () => contentApi.movies.get(id!),
@@ -286,15 +298,24 @@ export function MovieFormPage() {
 
       const fields = buildFields(form);
       let movieId = id;
+      let filmmakerNotStored = false;
 
       if (isNew) {
         // `movieValidation.create` has no `status` key, and createMovie forces
         // 'approved' for admins — so the chosen status is applied afterwards.
         setUploadStatus("Creating movie...");
         const { status, ...createFields } = fields;
+        const chosenFilmmaker = UUID_RE.test(form.filmmakerId) ? form.filmmakerId : "";
+        if (chosenFilmmaker) createFields.filmmaker_id = chosenFilmmaker;
         const created = await contentApi.movies.create(createFields, files);
         movieId = created?.id;
         if (!movieId) throw new Error("No movie ID returned from server after create.");
+        // The backend has dropped filmmaker_id on movie create before (see the
+        // note by the Filmmaker field), so only report it as assigned if the
+        // created movie really carries it.
+        if (chosenFilmmaker && created?.filmmaker_id !== chosenFilmmaker) {
+          filmmakerNotStored = true;
+        }
 
         if (status && status !== "approved") {
           await contentApi.movies.update(movieId, { status });
@@ -379,6 +400,12 @@ export function MovieFormPage() {
       // list re-fetches from the server instead of rendering stale rows.
       await queryClient.invalidateQueries({ queryKey: ["content", "movies"] });
       toast(isNew ? "Movie created successfully" : "Movie updated successfully", "success");
+      if (filmmakerNotStored) {
+        toast(
+          "The movie was created, but the server did not save the filmmaker you chose. Please report this to the backend team.",
+          "error",
+        );
+      }
       navigate("/content/movies");
     } catch (err: any) {
       toast(extractError(err, "Save failed"), "error");
@@ -602,20 +629,38 @@ export function MovieFormPage() {
               />
             </div>
 
-            {/* movies.filmmaker_id is a real, single, nullable column — but no
-                endpoint writes it: movieValidation.create strips it before the
-                controller reads req.body.filmmaker_id, and it is absent from
-                Movie.update()'s whitelist. Shown read-only rather than offering
-                a control that silently does nothing. */}
+            {/* movies.filmmaker_id is a single, nullable column. It is chosen
+                when the movie is created, like a show's filmmaker. Editing it
+                later is not possible: it is not in Movie.update()'s whitelist. */}
             <div className="sm:col-span-2">
-              <label className={labelCls}>Filmmaker</label>
-              <p className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-600 dark:border-slate-600 dark:text-slate-400">
-                {form.filmmakerName || form.filmmakerId || "Unassigned"}
-              </p>
-              <p className={hintCls}>
-                Read-only: the movie endpoints expose no writable filmmaker field.
-                Shows support this on create; movies need a backend change.
-              </p>
+              <label htmlFor="movie-filmmaker" className={labelCls}>Filmmaker</label>
+              {isNew ? (
+                <>
+                  <select
+                    id="movie-filmmaker"
+                    value={form.filmmakerId}
+                    onChange={(e) => set({ filmmakerId: e.target.value })}
+                    className={inputCls}
+                  >
+                    <option value="">{filmmakersError ? "Could not load filmmakers" : "Unassigned"}</option>
+                    {(filmmakers ?? []).map((f) => (
+                      <option key={f.id} value={f.id}>{filmmakerLabel(f)}</option>
+                    ))}
+                  </select>
+                  <p className={hintCls}>
+                    Attributes the movie to a filmmaker account for revenue splits and payouts.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-600 dark:border-slate-600 dark:text-slate-400">
+                    {form.filmmakerName || form.filmmakerId || "Unassigned"}
+                  </p>
+                  <p className={hintCls}>
+                    Set when the movie is created; the movie update endpoint cannot change it.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </section>

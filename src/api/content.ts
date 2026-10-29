@@ -156,6 +156,44 @@ export interface ShowEpisode {
   video_files?: unknown[];
 }
 
+/** One playable file of a movie or episode. */
+export interface PlayableFile {
+  quality: string;
+  url: string;
+}
+
+/**
+ * Reads GET /movies/:id/video-files or /episodes/:id/video-files, the same
+ * shapes the viewer app handles: { data: { video_files } }, nested under
+ * movie / episode, or a bare array. The URLs are signed and short-lived
+ * (60 s to 15 min), so they are fetched when the admin presses Play.
+ */
+function toPlayableFiles(body: unknown): PlayableFile[] {
+  const data = (body as { data?: unknown })?.data ?? body;
+  const d = data as Record<string, unknown> | unknown[] | undefined;
+  const inner = (!Array.isArray(d) && d && ((d.movie ?? d.episode ?? d) as Record<string, unknown> | unknown[])) || d;
+  const list = Array.isArray(inner)
+    ? inner
+    : Array.isArray((inner as Record<string, unknown>)?.video_files)
+      ? ((inner as Record<string, unknown>).video_files as unknown[])
+      : Array.isArray((inner as Record<string, unknown>)?.files)
+        ? ((inner as Record<string, unknown>).files as unknown[])
+        : [];
+  const RANK = ["1080p", "720p", "480p", "360p"];
+  return list
+    .map((raw) => {
+      const f = raw as Record<string, unknown>;
+      const url = (f.file_url ?? f.url ?? f.stream_url ?? f.hls_url) as string | undefined;
+      return url ? { quality: String(f.quality ?? f.resolution ?? "video"), url } : null;
+    })
+    .filter((f): f is PlayableFile => f !== null)
+    .sort((a, b) => {
+      const ra = RANK.indexOf(a.quality);
+      const rb = RANK.indexOf(b.quality);
+      return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
+    });
+}
+
 export const contentApi = {
   movies: {
     /**
@@ -209,6 +247,9 @@ export const contentApi = {
      */
     reject: (id: string, reason: string): Promise<void> =>
       api.post(`/movies/admin/${id}/reject`, { reason }).then(() => undefined),
+    /** GET /movies/:id/video-files — the uploaded movie, best quality first, for review. */
+    videoFiles: (id: string): Promise<PlayableFile[]> =>
+      api.get(`/movies/${id}/video-files`).then((r) => toPlayableFiles(r.data)),
     /** POST /movies/:id/video-files — multipart, field name must be `video`. */
     addVideoFile: (id: string, payload: FormData, onUploadProgress?: (e: any) => void) =>
       api.post(`/movies/${id}/video-files`, payload, { onUploadProgress }).then((r) => r.data),
@@ -266,6 +307,9 @@ export const contentApi = {
       body: { episode_number: number; title: string; description?: string; duration_minutes?: number }
     ) => api.post(`/seasons/${seasonId}/episodes`, body).then((r) => r.data?.data?.episode ?? r.data?.data ?? r.data),
 
+    /** GET /episodes/:episodeId/video-files — an uploaded episode, best quality first, for review. */
+    episodeVideoFiles: (episodeId: string): Promise<PlayableFile[]> =>
+      api.get(`/episodes/${episodeId}/video-files`).then((r) => toPlayableFiles(r.data)),
     /** POST /episodes/:episodeId/video-files — multipart, field name must be `video`. */
     addEpisodeVideo: (episodeId: string, payload: FormData, onUploadProgress?: (e: any) => void) =>
       api.post(`/episodes/${episodeId}/video-files`, payload, { onUploadProgress }).then((r) => r.data),

@@ -5,6 +5,8 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { contentApi, isMissingRoute, type ContentMediaFiles } from "../../api/content";
 import { toast } from "../../components/ui/Toast";
 import { PendingReviewBanner } from "../../components/ui/PendingReviewBanner";
+import { PreviewButton, type MediaLinks } from "../../components/ui/MediaPreview";
+import { useMediaPreview } from "../../components/ui/useMediaPreview";
 import { CONTENT_STATUSES, STATUS_LABELS } from "../../lib/contentStatus";
 import { AGE_RATINGS } from "../../lib/contentOptions";
 import type { Category } from "../../types/models";
@@ -196,6 +198,19 @@ export function ShowFormPage() {
   });
   const pendingDecision = moderation.isPending ? moderation.variables?.decision : undefined;
 
+  // ── Review the uploaded media ──────────────────────────────────
+  // Re-read the show first: its links are signed and expire.
+  const { preview, modal: previewModal } = useMediaPreview();
+  const previewShowField = (title: string, kind: "image" | "video", pick: (m: MediaLinks) => string | null | undefined) =>
+    preview({
+      title,
+      kind,
+      load: async () => {
+        const url = pick((await contentApi.shows.get(id!)) as MediaLinks);
+        return url ? [{ label: title, url }] : [];
+      },
+    });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
@@ -273,6 +288,7 @@ export function ShowFormPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      {previewModal}
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
           Edit Show: {form.title || "…"}
@@ -526,24 +542,28 @@ export function ShowFormPage() {
             <MediaField
               label="Poster"
               current={form.posterUrl}
+              onPreview={() => previewShowField("Poster", "image", (m) => m.poster_url)}
               accept="image/*"
               onPick={setPosterFile}
             />
             <MediaField
               label="Backdrop"
               current={form.backdropUrl}
+              onPreview={() => previewShowField("Backdrop", "image", (m) => m.backdrop_url)}
               accept="image/*"
               onPick={setBackdropFile}
             />
             <MediaField
               label="Thumbnail"
               current={form.thumbnailUrl}
+              onPreview={() => previewShowField("Thumbnail", "image", (m) => m.thumbnail_url)}
               accept="image/*"
               onPick={setThumbnailFile}
             />
             <MediaField
               label="Trailer"
               current={form.trailerUrl}
+              onPreview={() => previewShowField("Trailer", "video", (m) => m.trailer_url ?? m.trailer_video?.file_url)}
               accept="video/*"
               onPick={setTrailerFile}
               preview={false}
@@ -581,12 +601,15 @@ function MediaField({
   accept,
   onPick,
   preview = true,
+  onPreview,
 }: {
   label: string;
   current: string;
   accept: string;
   onPick: (f: File | null) => void;
   preview?: boolean;
+  /** Opens the stored file full size (image) or plays it (video). */
+  onPreview?: () => void;
 }) {
   return (
     <div>
@@ -598,13 +621,24 @@ function MediaField({
         className={inputCls}
       />
       {preview && (
-        <ImageWithFallback
-          src={current}
-          alt={`Current ${label.toLowerCase()}`}
-          className="mt-2 h-16 w-auto rounded object-cover ring-1 ring-slate-200 dark:ring-slate-600"
-        />
+        <button
+          type="button"
+          onClick={current ? onPreview : undefined}
+          disabled={!current || !onPreview}
+          className="mt-2 block rounded focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:cursor-default"
+          aria-label={`View the ${label.toLowerCase()} full size`}
+        >
+          <ImageWithFallback
+            src={current}
+            alt={`Current ${label.toLowerCase()}`}
+            className="h-16 w-auto rounded object-cover ring-1 ring-slate-200 dark:ring-slate-600"
+          />
+        </button>
       )}
       {current && !preview && <p className={hintCls}>✓ Stored — leave empty to keep</p>}
+      {current && onPreview && (
+        <PreviewButton kind={preview ? "image" : "video"} label={preview ? "View full size" : `Play ${label.toLowerCase()}`} onClick={onPreview} />
+      )}
     </div>
   );
 }

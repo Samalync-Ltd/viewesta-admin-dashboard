@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Play, Plus } from "lucide-react";
 import { contentApi, type ShowEpisode as Episode, type ShowSeason as Season } from "../../api/content";
 import { toast } from "../../components/ui/Toast";
+import { useMediaPreview } from "../../components/ui/useMediaPreview";
 
 const inputCls =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100";
@@ -109,10 +110,21 @@ export function ShowEpisodesPanel({ showId }: { showId: string }) {
     onSettled: () => setProgress(""),
   });
 
+  // Play an uploaded episode to review it. The link is signed and short-lived,
+  // so it is fetched when Play is pressed.
+  const { preview, modal: previewModal } = useMediaPreview();
+  const playEpisode = (ep: Episode) =>
+    preview({
+      title: `Episode ${ep.episode_number}. ${ep.title}`,
+      kind: "video",
+      load: async () => (await contentApi.shows.episodeVideoFiles(ep.id)).map((f) => ({ label: f.quality, url: f.url })),
+    });
+
   const canSubmit = title.trim().length > 0 && numberToUse >= 1 && (!creatingSeason || seasonNumberToUse >= 1) && !addMutation.isPending;
 
   return (
     <section className="space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      {previewModal}
       <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Episodes</h2>
 
       {seasonsQuery.isLoading ? (
@@ -137,10 +149,21 @@ export function ShowEpisodesPanel({ showId }: { showId: string }) {
                       <span className="text-slate-900 dark:text-slate-100">
                         {ep.episode_number}. {ep.title}
                       </span>
-                      <span className="text-xs text-slate-500">
-                        {ep.duration_minutes ? `${ep.duration_minutes} min` : ""}
-                        {" · "}
-                        {(ep.video_files?.length ?? 0) > 0 ? "has video" : "no video"}
+                      <span className="flex items-center gap-3 text-xs text-slate-500">
+                        <span>
+                          {ep.duration_minutes ? `${ep.duration_minutes} min` : ""}
+                          {Array.isArray(ep.video_files) && (
+                            <>{ep.duration_minutes ? " · " : ""}{ep.video_files.length > 0 ? "has video" : "no video"}</>
+                          )}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => playEpisode(ep)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+                          aria-label={`Play episode ${ep.episode_number}`}
+                        >
+                          <Play className="h-3.5 w-3.5" /> Play
+                        </button>
                       </span>
                     </li>
                   ))

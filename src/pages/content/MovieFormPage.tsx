@@ -4,6 +4,8 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { contentApi, type ContentMediaFiles } from "../../api/content";
 import { toast } from "../../components/ui/Toast";
 import { PendingReviewBanner } from "../../components/ui/PendingReviewBanner";
+import { PreviewButton, type MediaLinks, type PreviewSource } from "../../components/ui/MediaPreview";
+import { useMediaPreview } from "../../components/ui/useMediaPreview";
 import { filmmakersApi, filmmakerLabel } from "../../api/filmmakers";
 import { ImageWithFallback } from "../../components/ui/ImageWithFallback";
 import { CONTENT_STATUSES, STATUS_LABELS } from "../../lib/contentStatus";
@@ -236,6 +238,20 @@ export function MovieFormPage() {
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
 
+  // ── Review the uploaded media ──────────────────────────────────
+  // Every preview re-reads the movie first: its links are signed and expire,
+  // so the copy loaded with the page may no longer open.
+  const { preview, modal: previewModal } = useMediaPreview();
+  const one = (label: string, url?: string | null): PreviewSource[] => (url ? [{ label, url }] : []);
+  const previewMovieField = (title: string, kind: "image" | "video", pick: (m: MediaLinks) => string | null | undefined) =>
+    preview({ title, kind, load: async () => one(title, pick((await contentApi.movies.get(id!)) as MediaLinks)) });
+  const previewMainVideo = () =>
+    preview({
+      title: `${form.title || "Movie"} — uploaded video`,
+      kind: "video",
+      load: async () => (await contentApi.movies.videoFiles(id!)).map((f) => ({ label: f.quality, url: f.url })),
+    });
+
   // ── Approval mutations ──────────────────────────────────────────
   const approveMutation = useMutation({
     mutationFn: () => contentApi.movies.approve(id!),
@@ -425,6 +441,7 @@ export function MovieFormPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      {previewModal}
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
           {isNew ? "Add Movie" : `Edit: ${form.title || "…"}`}
@@ -743,11 +760,21 @@ export function MovieFormPage() {
               {/* Renders the bundled placeholder when the URL is null or
                   the presigned S3 link has expired, instead of a broken icon. */}
               {!isNew && (
-                <ImageWithFallback
-                  src={form.posterUrl}
-                  alt="Current poster"
-                  className="mt-2 h-16 w-12 rounded object-cover ring-1 ring-slate-200 dark:ring-slate-600"
-                />
+                <button
+                  type="button"
+                  onClick={() => previewMovieField("Poster", "image", (m) => m?.poster_url)}
+                  className="mt-2 block rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  aria-label="View the poster full size"
+                >
+                  <ImageWithFallback
+                    src={form.posterUrl}
+                    alt="Current poster"
+                    className="h-16 w-12 rounded object-cover ring-1 ring-slate-200 dark:ring-slate-600"
+                  />
+                </button>
+              )}
+              {!isNew && form.posterUrl && (
+                <PreviewButton kind="image" label="View full size" onClick={() => previewMovieField("Poster", "image", (m) => m?.poster_url)} />
               )}
             </div>
 
@@ -764,11 +791,21 @@ export function MovieFormPage() {
               {/* Renders the bundled placeholder when the URL is null or
                   the presigned S3 link has expired, instead of a broken icon. */}
               {!isNew && (
-                <ImageWithFallback
-                  src={form.backdropUrl}
-                  alt="Current backdrop"
-                  className="mt-2 h-10 w-16 rounded object-cover ring-1 ring-slate-200 dark:ring-slate-600"
-                />
+                <button
+                  type="button"
+                  onClick={() => previewMovieField("Backdrop", "image", (m) => m?.backdrop_url)}
+                  className="mt-2 block rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  aria-label="View the backdrop full size"
+                >
+                  <ImageWithFallback
+                    src={form.backdropUrl}
+                    alt="Current backdrop"
+                    className="h-10 w-16 rounded object-cover ring-1 ring-slate-200 dark:ring-slate-600"
+                  />
+                </button>
+              )}
+              {!isNew && form.backdropUrl && (
+                <PreviewButton kind="image" label="View full size" onClick={() => previewMovieField("Backdrop", "image", (m) => m?.backdrop_url)} />
               )}
             </div>
 
@@ -781,7 +818,14 @@ export function MovieFormPage() {
                 className={inputCls}
               />
               {!isNew && form.trailerUrl && (
-                <p className={hintCls}>✓ Trailer exists — leave empty to keep</p>
+                <>
+                  <p className={hintCls}>✓ Trailer exists — leave empty to keep</p>
+                  <PreviewButton
+                    kind="video"
+                    label="Play trailer"
+                    onClick={() => previewMovieField("Trailer", "video", (m) => m?.trailer_url ?? m?.trailer_video?.file_url)}
+                  />
+                </>
               )}
             </div>
 
@@ -794,6 +838,7 @@ export function MovieFormPage() {
                 className={inputCls}
               />
               <p className={hintCls}>Leave empty to keep the existing video</p>
+              {!isNew && <PreviewButton kind="video" label="Play uploaded video" onClick={previewMainVideo} />}
             </div>
 
             <div>
